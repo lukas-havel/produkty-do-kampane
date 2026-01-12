@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Produkty do kampaně — filtr & export XLSX</title>
+  <title>Produkty do kampaně — filtr & export XLSX (agregace bez datumu v exportu)</title>
   <style>
     :root{
       color-scheme: light dark;
@@ -44,7 +44,6 @@
     thead th{background:#f8fafc;padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}
     tbody td{border-top:1px solid var(--border);padding:8px 10px}
     td.num{text-align:right}
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef3fb;color:#111;font-size:12px;margin-left:6px}
     .kv{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .kv .item{background:#eef3fb;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px}
   </style>
@@ -54,7 +53,8 @@
     <h1>Produkty do kampaně — filtr & export XLSX</h1>
     <p class="hint">
       Vstup 1 (long): <strong>Produkt</strong>, <strong>Dodavatel</strong>, <strong>Datum</strong>, <strong>Obrat</strong>.<br>
-      Vstup 2 (systémový report): řádky 1–4 přeskočit, v <strong>A</strong> dodavatel (tučně) a pod ním produkty; v <strong>B</strong> obrat; <strong>ř. 5</strong> = datum (den pro všechny následující řádky).
+      Vstup 2 (systémový report): řádky 1–4 přeskočit, v <strong>A</strong> dodavatel (tučně) a pod ním produkty; v <strong>B</strong> obrat; <strong>ř. 5</strong> = datum (den pro všechny řádky).<br>
+      <em>Export: bez sloupce datum — agregace za zvolené období → Dodavatel, Produkt, Obrat (součet).</em>
     </p>
   </header>
 
@@ -114,11 +114,11 @@
     <!-- VÝSTUP / NÁHLED -->
     <main class="card">
       <h2>Náhled (prvních N záznamů po filtru)</h2>
-      <div class="muted">Zobrazuje se jen ukázka (max. 200 řádků), aby UI bylo svižné.</div>
+      <div class="muted">Zobrazuje se jen ukázka (max. 200 agregovaných řádků), aby UI bylo svižné.</div>
       <table id="previewTable">
         <thead>
           <tr>
-            <th>Dodavatel</th><th>Produkt</th><th>Datum</th><th class="num">Obrat (Kč)</th>
+            <th>Dodavatel</th><th>Produkt</th><th class="num">Obrat (Kč)</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -129,7 +129,7 @@
     </main>
   </div>
 
-  <!-- ===== Web Worker (Blob) — parsing XLSX, detekce módu, filtrování, export ===== -->
+  <!-- ===== Web Worker (Blob) — parsing XLSX, detekce módu, filtrování, AGREGACE, export ===== -->
   <script>
     const workerCode = `
       /* ===== UTIL ===== */
@@ -157,7 +157,6 @@
         const s = String(val).replace(/[^\d,.\- ]/g,'').replace(/\\s+/g,'').replace(/,/g,'.');
         const n = parseFloat(s); return isNaN(n) ? 0 : n;
       }
-      function iso(d){ return d.toISOString().slice(0,10); }
 
       /* ===== SheetJS loader ===== */
       function loadXLSX(cb){
@@ -217,6 +216,7 @@
               /* === Auto detekce módu ===
                  MODE_A (long): hlavičky obsahují Produkt/Dodavatel/Datum/Obrat
                  MODE_B (report): řádky 1–4 prázdné/hlaviční, ř.5 obsahuje datum a dál střídání A=Dodavatel (B prázdná) + produkty (A text, B číslo)
+                 Pozn.: Datum se používá jen k filtraci — v exportu ho neuvádíme (agregujeme za období).
               */
               let mode = 'A';
               const headers = rows[0] || [];
@@ -229,17 +229,13 @@
                 if (idxDate<0 && matchHeader(h, ['datum','date','datum prodeje','sale date'])) idxDate=c;
                 if (idxRev<0  && matchHeader(h, ['obrat','trzby','revenue','amount','castka','částka','sum'])) idxRev=c;
               }
-              // Heuristika: když Datum/Obrat nejsou v hlavičce, zkus MODE_B
-              if (idxDate<0 || idxRev<0){
-                mode = 'B';
-              }
+              if (idxDate<0 || idxRev<0){ mode = 'B'; }
 
-              const out = [];    // [Dodavatel, Produkt, DatumISO, Obrat]
-              const preview = [];
-              let totalIn = 0, totalOut = 0;
+              // AGREGÁTOR podle (Dodavatel, Produkt)
+              const agg = new Map(); // key = supp + '\u0001' + prod → {supp, prod, sum, rows}
+              let totalIn = 0, totalOutRows = 0;
 
               if (mode === 'A'){
-                // fallback heuristika na idxDate/idxRev, když nejsou
                 if (idxProd<0) idxProd = 0;
                 if (idxSupp<0) idxSupp = 1;
                 if (idxDate<0 || idxRev<0){
@@ -250,12 +246,13 @@
                       const d = parseExcelDate(v);
                       const n = parseNum(v);
                       if (d && !isNaN(d.getTime())) dateScore++;
-                      if (typeof v==='number' || (!isNaN(n) && String(v).match(/\\d/))) numScore++;
+                      if (typeof v==='number' || (!isNaN(n) && String(v).match(/\d/))) numScore++;
                     }
                     if (dateScore>=5 && idxDate<0) idxDate=c;
                     if (numScore >=5 && idxRev<0)  idxRev=c;
                   }
                 }
+
                 for (let r=1;r<rows.length;r++){
                   const row = rows[r]; if (!row) continue; totalIn++;
                   const prod = idxProd>=0 ? String(row[idxProd]||'').trim() : '';
@@ -269,23 +266,23 @@
                   if (fSupp && !supp.toLowerCase().includes(fSupp)) continue;
                   if (fProd && !prod.toLowerCase().includes(fProd)) continue;
 
-                  totalOut++;
-                  const isoDate = iso(dat);
-                  out.push([supp, prod, isoDate, rev]);
-                  if (preview.length<200) preview.push({Dodavatel:supp,Produkt:prod,Datum:isoDate,Obrat:rev});
+                  totalOutRows++;
+                  const key = supp + '\\u0001' + prod;
+                  const curr = agg.get(key);
+                  if (curr){ curr.sum += rev; curr.rows += 1; }
+                  else { agg.set(key, {supp, prod, sum:rev, rows:1}); }
+
                   if (r%5000===0){ self.postMessage({type:'progress',value:Math.round(r/rows.length*100)}); }
                 }
               } else {
-                // MODE_B: systémový report (ř.5 = datum dne; A dodavatel header (B prázdná), pod tím produkty (A text, B číslo))
+                // MODE_B (systémový report)
                 const dateRowIdx = 4; // 0‑based: řádek 5
                 let sheetDate = null;
-                // najdi datum v řádku 5 (v libovolném sloupci)
                 const row5 = rows[dateRowIdx] || [];
                 for (let c=0;c<row5.length;c++){
                   const d = parseExcelDate(row5[c]);
                   if (d && !isNaN(d.getTime())) { sheetDate = d; break; }
                 }
-                // pokud datum chybí v řádku 5, zkus první řádek s platným datem do budoucna
                 if (!sheetDate){
                   for (let r=0;r<Math.min(rows.length,10);r++){
                     for (let c=0;c<(rows[r]||[]).length;c++){
@@ -297,67 +294,69 @@
                 }
                 if (!sheetDate){ self.postMessage({type:'error',message:'Nepodařilo se najít datum v řádku 5 ani v hlavičce.'}); return; }
 
-                const startR = 5; // data začínají až pod řádkem 5 (tj. r>=5 → řádek 6)
+                const startR = 5; // data pod ř. 5
                 let currentSupplier = '';
                 for (let r=startR;r<rows.length;r++){
                   const row = rows[r]; if (!row) continue; totalIn++;
-                  const a = row[0]; // sloupec A
-                  const b = row[1]; // sloupec B (obrat)
+                  const a = row[0]; const b = row[1];
                   const aStr = (a==null?'':String(a).trim());
                   const rev = parseNum(b);
 
-                  // Dodavatel header: A neprázdné + B prázdné
                   const isSupplierHeader = (aStr!=='' && (b==null || String(b).trim()===''));
-                  // Produkt řádek: A neprázdné + B číslo
-                  const isProductRow = (aStr!=='' && (typeof b==='number' || (!isNaN(parseNum(b)) && String(b).match(/\\d/))));
+                  const isProductRow = (aStr!=='' && (typeof b==='number' || (!isNaN(parseNum(b)) && String(b).match(/\d/))));
 
                   if (isSupplierHeader){
                     currentSupplier = aStr;
                   } else if (isProductRow){
                     const prod = aStr;
-                    const dat = sheetDate; // všem řádkům je přiřazen datum z ř.5
+                    const dat = sheetDate;
                     if (dateFrom && dat<dateFrom) continue;
                     if (dateTo && dat>dateTo) continue;
                     if (rev < minRev) continue;
                     if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
                     if (fProd && !prod.toLowerCase().includes(fProd)) continue;
 
-                    totalOut++;
-                    const isoDate = iso(dat);
-                    out.push([currentSupplier, prod, isoDate, rev]);
-                    if (preview.length<200) preview.push({Dodavatel:currentSupplier,Produkt:prod,Datum:isoDate,Obrat:rev});
+                    totalOutRows++;
+                    const key = currentSupplier + '\\u0001' + prod;
+                    const curr = agg.get(key);
+                    if (curr){ curr.sum += rev; curr.rows += 1; }
+                    else { agg.set(key, {supp:currentSupplier, prod, sum:rev, rows:1}); }
                   }
 
                   if (r%5000===0){ self.postMessage({type:'progress',value:Math.round(r/rows.length*100)}); }
                 }
               }
 
-              // Export XLSX (pořadí sloupců: Dodavatel, Produkt, Datum, Obrat)
+              // Připrav OUT (Dodavatel, Produkt, Obrat_součet)
+              const outArr = Array.from(agg.values()).map(x => [x.supp, x.prod, x.sum]);
+
+              // Export XLSX (bez sloupce datum)
               let xlsxBuffer = null, fileName = null;
               if (!wantPreview){
-                const hdr = ['Dodavatel','Produkt','Datum','Obrat'];
-                const aoa = [hdr].concat(out);
+                const hdr = ['Dodavatel','Produkt','Obrat'];
+                const aoa = [hdr].concat(outArr);
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
-                for (let r=1;r<=out.length;r++){
-                  const addrDate = XLSX.utils.encode_cell({r, c:2}); // Datum
-                  const addrRev  = XLSX.utils.encode_cell({r, c:3}); // Obrat
-                  if (ws[addrDate]) ws[addrDate].z = 'yyyy-mm-dd';
+                for (let r=1;r<=outArr.length;r++){
+                  const addrRev  = XLSX.utils.encode_cell({r, c:2}); // Obrat
                   if (ws[addrRev])  ws[addrRev].z  = '#,##0.00;[Red]-#,##0.00';
                 }
                 const wbOut = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wbOut, ws, 'Filtered');
 
                 const arr = XLSX.write(wbOut, { bookType:'xlsx', type:'array' });
-                xlsxBuffer = arr; // ArrayBuffer
+                xlsxBuffer = arr;
                 const df = dateFrom ? dateFrom.toISOString().slice(0,10) : 'od';
                 const dt = dateTo   ? dateTo.toISOString().slice(0,10)   : 'do';
                 fileName = 'Produkty_do_kampane__' + df + '_' + dt + '__min' + minRev + '.xlsx';
               }
 
+              // Náhled (max 200)
+              const preview = outArr.slice(0,200).map(x => ({Dodavatel:x[0], Produkt:x[1], Obrat:x[2]}));
+
               self.postMessage({
                 type: wantPreview ? 'preview' : 'export',
                 preview,
-                summary: { totalIn, totalOut, sheetName: targetSheet, mode },
+                summary: { totalIn, totalOut: outArr.length, totalAcceptedRows: totalOutRows, sheetName: targetSheet, mode },
                 xlsxBuffer,
                 fileName,
                 columns: { mode, idxProd, idxSupp, idxDate, idxRev, headers }
@@ -375,7 +374,6 @@
 
   <!-- ===== UI logika ===== -->
   <script>
-    // DOM
     var fileEl      = document.getElementById('file');
     var sheetSelEl  = document.getElementById('sheetSel');
     var dateFromEl  = document.getElementById('dateFrom');
@@ -393,7 +391,6 @@
 
     var lastArrayBuffer = null;
 
-    // Worker zprávy
     xlsxWorker.onmessage = function(ev){
       var msg = ev.data || {};
       if (msg.type === 'ready'){
@@ -416,7 +413,7 @@
       }else if (msg.type === 'export'){
         progressBar.style.width = '100%';
         statusEl.textContent = 'Stav: hotovo (export).';
-        renderPreview(msg.preview); // ukázka
+        renderPreview(msg.preview);
         renderSummary(msg.summary);
         triggerDownload(msg.xlsxBuffer, msg.fileName);
       }
@@ -504,7 +501,6 @@
         return '<tr>' +
           '<td>' + escapeHtml(r.Dodavatel) + '</td>' +
           '<td>' + escapeHtml(r.Produkt) + '</td>' +
-          '<td>' + escapeHtml(r.Datum) + '</td>' +
           '<td class="num">' + new Intl.NumberFormat('cs-CZ', {minimumFractionDigits:2, maximumFractionDigits:2}).format(r.Obrat) + '</td>' +
         '</tr>';
       }).join('');
@@ -512,8 +508,9 @@
     }
     function renderSummary(s){
       summaryBox.innerHTML = '' +
-        '<div class="item">Řádků v listu: <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalIn) + '</strong></div>' +
-        '<div class="item">Prošlo filtrem: <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalOut) + '</strong></div>' +
+        '<div class="item">Řádků (vstup): <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalIn) + '</strong></div>' +
+        '<div class="item">Akceptovaných denních záznamů: <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalAcceptedRows) + '</strong></div>' +
+        '<div class="item">Agregovaných produktů: <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalOut) + '</strong></div>' +
         '<div class="item">List: <strong>' + escapeHtml(s.sheetName) + '</strong></div>' +
         '<div class="item">Detekovaný mód: <strong>' + (s.mode==='A'?'long (hlavičky)':'report (ř.5=datum, A/B řádky)') + '</strong></div>';
     }
