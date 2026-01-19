@@ -157,7 +157,7 @@
       height:100%; width:0%; background: linear-gradient(90deg, var(--primary), var(--accent)); 
       transition: width .2s ease;
     }
-    .progress-bar.upload{ background: linear-gradient(90deg, #10b981, #34d399); } /* Zelená pro upload */
+    .progress-bar.upload{ background: linear-gradient(90deg, #10b981, #34d399); }
     .progress-text{
       position: absolute; top:0; left:0; width:100%; height:100%;
       display:flex; align-items:center; justify-content:center;
@@ -199,7 +199,7 @@
     <h1>Produkty do kampaně — filtr & export XLSX</h1>
     <p class="hint">
       Zpracovává listy (měsíce). Ignoruje list "Data".<br>
-      <strong>Logika:</strong> Filtruje sloupce dle data v hlavičce. (A=Dodavatel, B=Produkt).
+      <strong>Logika:</strong> Filtruje sloupce dle data. Načítá jen relevantní měsíce. (A=Dodavatel, B=Produkt).
     </p>
   </header>
   <div class="grid">
@@ -324,6 +324,7 @@
           if(n.includes(czMonths[i]) || n.includes(simpleMonths[i])) { idx = i; break; }
         }
         if(idx === -1) return null;
+        // Použijeme rok z filtru.
         const y = targetYear || new Date().getFullYear();
         return new Date(y, idx, 1);
       }
@@ -364,28 +365,56 @@
           loadXLSX(function(err){
             if (err){ self.postMessage({type:'error',message:err.message}); return; }
             try{
-              self.postMessage({type:'status', info:'Skenuji strukturu...'});
+              self.postMessage({type:'status', info:'Skenuji seznam listů...'});
+              // Použijeme bookSheets pro super-rychlý sken názvů
               const wbMeta = XLSX.read(ab, { type:'array', bookSheets:true });
               let allSheets = wbMeta.SheetNames;
               
               let sheetsToParse = [];
               for(let name of allSheets){
                  if(name.trim().toLowerCase() === 'data') continue;
+                 
+                 // === OPTIMALIZACE VÝBĚRU LISTŮ ===
+                 if (dateFrom || dateTo) {
+                   const sheetStart = getMonthFromSheetName(name, filterYear);
+                   
+                   if (sheetStart) {
+                     // Spočítáme konec měsíce daného listu
+                     const sheetEnd = new Date(sheetStart.getFullYear(), sheetStart.getMonth() + 1, 0, 23, 59, 59);
+                     
+                     // PRŮNIK INTERVALŮ:
+                     // List se zpracuje, jen když se časově překrývá s filtrem.
+                     // Pokud konec listu < začátek filtru -> přeskočit
+                     if (dateFrom && sheetEnd < dateFrom) continue;
+                     
+                     // Pokud začátek listu > konec filtru -> přeskočit
+                     if (dateTo && sheetStart > dateTo) continue;
+                   }
+                   // Pokud se datum listu nepodařilo zjistit (např. divný název), 
+                   // raději ho zahrneme, abychom o nic nepřišli, nebo přeskočíme?
+                   // Většinou chceme přeskočit "Data", "Ostatní".
+                   // Pokud getMonthFromSheetName vrátí null, asi to není měsíc -> skip?
+                   // Pro jistotu: pokud nemáme datum listu, ale uživatel filtruje datum, ignorujeme.
+                   if (!sheetStart) continue;
+                 }
                  sheetsToParse.push(name);
               }
 
               if (sheetsToParse.length === 0){
-                self.postMessage({type:'error',message:'Žádné datové listy k analýze.'}); 
+                self.postMessage({type:'error',message:'Žádné listy neodpovídají zvolenému období.'}); 
                 return; 
               }
 
-              self.postMessage({type:'status', info:'Načítám data...'});
+              self.postMessage({type:'status', info:'Načítám detailně ' + sheetsToParse.length + ' listů...'});
+              
+              // Tady proběhne to skutečné načtení dat (trvá nejdéle)
+              // Díky option "sheets" načte jen ty vybrané!
               const wb = XLSX.read(ab, { 
                 type:'array', 
                 cellStyles:false,
                 cellHTML:false, 
                 cellNF:false,
-                sheets: sheetsToParse,
+                sheets: sheetsToParse, // Klíčové zrychlení
                 cellDates: true 
               });
 
@@ -404,6 +433,7 @@
                 const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
                 if (!rows || rows.length < 2) continue; 
 
+                // Hlavička a filtrování sloupců
                 const headerRow = rows[0];
                 const validColumnIndices = []; 
                 
@@ -433,8 +463,9 @@
                   
                   if (hasA) {
                     const str = String(valA).trim();
-                    if(str.toLowerCase() === 'dodavatel' || str.toLowerCase() === 'supplier') continue;
-                    currentSupplier = str;
+                    if(str.toLowerCase() !== 'dodavatel' && str.toLowerCase() !== 'supplier') {
+                      currentSupplier = str;
+                    }
                   }
                   
                   if (hasB && currentSupplier) {
@@ -504,11 +535,9 @@
     var statusEl = document.getElementById('status');
     var errorEl = document.getElementById('error');
     
-    // Elementy pro Upload Bar
     var barUpload = document.getElementById('barUpload');
     var txtUpload = document.getElementById('txtUpload');
     
-    // Elementy pro Process Bar
     var processBox = document.getElementById('processBox');
     var barProcess = document.getElementById('barProcess');
     var txtProcess = document.getElementById('txtProcess');
@@ -542,7 +571,6 @@
     function handleFileSelect(){
       var f = fileEl.files[0];
       if (!f) return;
-      // Resetujeme jen Process bar, Upload bar začínáme plnit
       resetProcessUIOnly(); 
       document.getElementById('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
       statusEl.textContent = 'Nahrávám soubor...';
@@ -570,7 +598,6 @@
       if(!lastArrayBuffer) { statusEl.textContent='Nahrajte soubor!'; return; }
       previewTBody.innerHTML = '';
       errorEl.textContent = '';
-      // Aktivujeme Process bar
       setProcessProg(1); 
       statusEl.textContent = 'Spouštím analýzu...';
       
@@ -604,8 +631,6 @@
       var a = document.createElement('a'); a.href=u; a.download=name; 
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
-    
-    /* ===== Progress Helpers ===== */
     function setUploadProg(p){
       barUpload.style.width = p + '%';
       txtUpload.textContent = p + '%';
@@ -623,6 +648,8 @@
       summaryBox.innerHTML = '';
       errorEl.textContent = '';
     }
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    function fmt(n){ return new Intl.NumberFormat('cs-CZ').format(n); }
     function resetUI(clearFile){ 
       if(clearFile) { 
         fileEl.value = ''; 
