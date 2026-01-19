@@ -286,7 +286,8 @@
         return isNaN(n) ? 0 : n;
       }
       
-      function getMonthFromSheetName(name){
+      // Upraveno: přijímá cílový rok pro správné přiřazení
+      function getMonthFromSheetName(name, targetYear){
         const n = norm(name);
         const czMonths = ['leden','unor','brezen','duben','kveten','cerven','cervenec','srpen','zari','rijen','listopad','prosinec'];
         const simpleMonths = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
@@ -295,8 +296,10 @@
           if(n.includes(czMonths[i]) || n.includes(simpleMonths[i])) { idx = i; break; }
         }
         if(idx === -1) return null;
-        const now = new Date();
-        return new Date(now.getFullYear(), idx, 1);
+        
+        // Použijeme rok z filtru, pokud existuje. Jinak aktuální.
+        const y = targetYear || new Date().getFullYear();
+        return new Date(y, idx, 1);
       }
 
       /* ===== SheetJS loader ===== */
@@ -326,6 +329,9 @@
           const fProd    = (msg.productContains  || '').trim().toLowerCase();
           const wantPreview = !!msg.wantPreview;
 
+          // Určíme rok pro detekci listů (podle filtru)
+          const filterYear = dateFrom ? dateFrom.getFullYear() : (dateTo ? dateTo.getFullYear() : new Date().getFullYear());
+
           loadXLSX(function(err){
             if (err){ self.postMessage({type:'error',message:err.message}); return; }
             try{
@@ -338,26 +344,26 @@
               for(let name of allSheets){
                  if(name.trim().toLowerCase() === 'data') continue;
                  
-                 // VALIDACE DATA:
+                 // Validace podle data (s opraveným rokem)
                  if (dateFrom || dateTo) {
-                   const sDate = getMonthFromSheetName(name);
-                   // Pokud list nemá v názvu měsíc, ignorujeme ho (pro jistotu)
+                   const sDate = getMonthFromSheetName(name, filterYear);
                    if (!sDate) continue; 
                    
-                   // OPRAVA LOGIKY: Pokud je list "Leden" (1.1.), ale filtr je "Od 20.1.",
-                   // musíme list VZÍT, protože 20.1. je v Lednu.
-                   // Takže normalizujeme 'dateFrom' na začátek měsíce.
-                   
                    if (dateFrom) {
-                     // Vytvoříme 1. den měsíce z filtru
-                     const dFromMonth = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1);
-                     // Pokud je list STARŠÍ než měsíc filtru -> ignorovat
-                     if (sDate < dFromMonth) continue;
+                     // Začátek měsíce listu vs. Filtr
+                     // Abychom nevyhodili "Leden" (1.1.) když filtr je "Od 20.1.",
+                     // porovnáme jen měsíc a rok, nebo posuneme sDate na konec měsíce?
+                     // Nejlepší: Pokud sDate (1.1.) je MENŠÍ než začátek měsíce filtru -> pryč.
+                     // Tzn. pokud filtr 20.1., tak "Leden" chceme. (1.1. < 20.1. je true, ale to neznamená zahodit).
+                     // Chceme zahodit jen pokud celý měsíc listu je před filtrem.
+                     // Tzn. Konec měsíce listu < dateFrom.
+                     
+                     const sheetMonthEnd = new Date(sDate.getFullYear(), sDate.getMonth() + 1, 0); // poslední den měsíce
+                     if (sheetMonthEnd < dateFrom) continue;
                    }
                    
                    if (dateTo) {
-                     // Pokud je list "Únor" (1.2.) a filtr je "Do 25.1." -> ignorovat
-                     // Tady stačí porovnat s dateTo (pokud je začátek listu až po konci filtru)
+                     // Pokud začátek listu je až po dateTo, tak zahodit.
                      if (sDate > dateTo) continue;
                    }
                  }
@@ -365,7 +371,7 @@
               }
 
               if (sheetsToParse.length === 0){
-                self.postMessage({type:'error',message:'Žádné listy neodpovídají zvolenému období.'}); 
+                self.postMessage({type:'error',message:'Žádné listy neodpovídají zvolenému období (Rok ' + filterYear + ').'}); 
                 return; 
               }
 
@@ -397,7 +403,6 @@
                 for (let r=0; r<rows.length; r++){
                   const row = rows[r]; if(!row) continue;
                   
-                  // Sloupec A = Dodavatel, Sloupec B = Produkt
                   const valA = row[0];
                   const valB = row[1];
                   
