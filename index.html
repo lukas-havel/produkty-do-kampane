@@ -148,7 +148,7 @@
     .error{ color: var(--warn); margin-top: 8px; }
     .muted{ color: var(--muted); font-size: 13px; }
     
-    /* Loading Bar - Pod inputem */
+    /* Loading Bar */
     .progress-container{
       height: 14px; border-radius: 999px; overflow: hidden; background: rgba(2,6,23,.06); 
       margin-top: 8px; margin-bottom: 8px; position: relative;
@@ -337,11 +337,29 @@
               let sheetsToParse = [];
               for(let name of allSheets){
                  if(name.trim().toLowerCase() === 'data') continue;
+                 
+                 // VALIDACE DATA:
                  if (dateFrom || dateTo) {
                    const sDate = getMonthFromSheetName(name);
+                   // Pokud list nemá v názvu měsíc, ignorujeme ho (pro jistotu)
                    if (!sDate) continue; 
-                   if (dateFrom && sDate < dateFrom) continue;
-                   if (dateTo && sDate > dateTo) continue;
+                   
+                   // OPRAVA LOGIKY: Pokud je list "Leden" (1.1.), ale filtr je "Od 20.1.",
+                   // musíme list VZÍT, protože 20.1. je v Lednu.
+                   // Takže normalizujeme 'dateFrom' na začátek měsíce.
+                   
+                   if (dateFrom) {
+                     // Vytvoříme 1. den měsíce z filtru
+                     const dFromMonth = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1);
+                     // Pokud je list STARŠÍ než měsíc filtru -> ignorovat
+                     if (sDate < dFromMonth) continue;
+                   }
+                   
+                   if (dateTo) {
+                     // Pokud je list "Únor" (1.2.) a filtr je "Do 25.1." -> ignorovat
+                     // Tady stačí porovnat s dateTo (pokud je začátek listu až po konci filtru)
+                     if (sDate > dateTo) continue;
+                   }
                  }
                  sheetsToParse.push(name);
               }
@@ -355,7 +373,7 @@
               self.postMessage({type:'status', info:'Načítám data z ' + sheetsToParse.length + ' listů...'});
               const wb = XLSX.read(ab, { 
                 type:'array', 
-                cellStyles:false, // Už nepotřebujeme styly!
+                cellStyles:false,
                 cellHTML:false, 
                 cellNF:false,
                 sheets: sheetsToParse 
@@ -379,27 +397,21 @@
                 for (let r=0; r<rows.length; r++){
                   const row = rows[r]; if(!row) continue;
                   
-                  // Sloupec A = Dodavatel
-                  // Sloupec B = Produkt
-                  
+                  // Sloupec A = Dodavatel, Sloupec B = Produkt
                   const valA = row[0];
                   const valB = row[1];
                   
                   const hasA = (valA != null && String(valA).trim() !== '');
                   const hasB = (valB != null && String(valB).trim() !== '');
                   
-                  // Pokud je v A text, nastavíme ho jako aktuálního dodavatele
                   if (hasA) {
                     currentSupplier = String(valA).trim();
                   }
                   
-                  // Pokud je v B text (Produkt), a máme dodavatele, zpracujeme
                   if (hasB && currentSupplier) {
                      const prodName = String(valB).trim();
-                     
-                     // Zjistíme součet v řádku (sloupce C a dál)
                      let rowSum = 0;
-                     for(let c=2; c<row.length; c++){ // začínáme od C (index 2)
+                     for(let c=2; c<row.length; c++){ 
                        const cell = row[c];
                        if(cell != null) {
                          const n = parseNum(cell);
@@ -408,8 +420,6 @@
                      }
                      
                      totalIn++;
-                     
-                     // Textové filtry
                      if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
                      if (fProd && !prodName.toLowerCase().includes(fProd)) continue;
                      
@@ -421,12 +431,10 @@
                 }
               }
 
-              // Filtr obratu
               let result = Array.from(agg.values());
               result = result.filter(x => x.sum >= minRev);
               result.sort((a,b) => b.sum - a.sum);
 
-              // Export
               let xlsxBuffer = null, fileName = null;
               if (!wantPreview){
                 const outArr = result.map(x => [x.supp, x.prod, x.sum]);
@@ -443,7 +451,6 @@
                 fileName = 'Export_kampan.xlsx';
               }
 
-              // Náhled
               self.postMessage({
                 type: wantPreview ? 'preview' : 'export',
                 preview: result.slice(0, 50).map(x => ({Dodavatel:x.supp, Produkt:x.prod, Obrat:x.sum})),
@@ -496,11 +503,9 @@
     function handleFileSelect(){
       var f = fileEl.files[0];
       if (!f) return;
-      
       resetUI(false); 
       document.getElementById('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
       statusEl.textContent = 'Nahrávám soubor...';
-      
       var reader = new FileReader();
       reader.onprogress = function(data) {
         if (data.lengthComputable) {
