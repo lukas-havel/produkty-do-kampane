@@ -148,7 +148,7 @@
     .error{ color: var(--warn); margin-top: 8px; }
     .muted{ color: var(--muted); font-size: 13px; }
     
-    /* Loading Bar */
+    /* Loading Bars */
     .progress-container{
       height: 14px; border-radius: 999px; overflow: hidden; background: rgba(2,6,23,.06); 
       margin-top: 8px; margin-bottom: 8px; position: relative;
@@ -157,6 +157,7 @@
       height:100%; width:0%; background: linear-gradient(90deg, var(--primary), var(--accent)); 
       transition: width .2s ease;
     }
+    .progress-bar.upload{ background: linear-gradient(90deg, #10b981, #34d399); } /* Zelená pro upload */
     .progress-text{
       position: absolute; top:0; left:0; width:100%; height:100%;
       display:flex; align-items:center; justify-content:center;
@@ -207,13 +208,13 @@
       <h2>Nahrát & filtrovat</h2>
       <label for="file">Excel (.xls / .xlsx)</label>
       
-      <!-- LOADING BAR -->
+      <!-- LOADING BAR 1: UPLOAD -->
       <div class="progress-container">
-        <div id="progressBar" class="progress-bar"></div>
-        <div id="progressText" class="progress-text">0%</div>
+        <div id="barUpload" class="progress-bar upload"></div>
+        <div id="txtUpload" class="progress-text">0%</div>
       </div>
 
-      <input type="file" id="file" accept=".xlsx,.xls" onclick="resetProgress()" onchange="handleFileSelect()" />
+      <input type="file" id="file" accept=".xlsx,.xls" onclick="resetUI(false)" onchange="handleFileSelect()" />
       
       <div class="controls-row">
         <div style="flex:1">
@@ -244,10 +245,17 @@
       <div class="controls-row">
         <button class="btn btn-primary" onclick="runFilter()">Filtrovat (Náhled)</button>
         <button class="btn btn-accent" onclick="runExport()">Exportovat XLSX</button>
-        <button class="btn btn-danger" onclick="resetUI()">Reset</button>
+        <button class="btn btn-danger" onclick="resetUI(true)">Reset</button>
       </div>
 
       <div id="status" class="status">Stav: připraveno (čekám na soubor)…</div>
+      
+      <!-- LOADING BAR 2: PROCESS -->
+      <div class="progress-container" id="processBox" style="opacity:0.6">
+        <div id="barProcess" class="progress-bar"></div>
+        <div id="txtProcess" class="progress-text">0% (neaktivní)</div>
+      </div>
+
       <div id="error" class="error"></div>
       <div id="fileInfo" class="muted"></div>
     </aside>
@@ -396,7 +404,6 @@
                 const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
                 if (!rows || rows.length < 2) continue; 
 
-                // 1. ANALÝZA HLAVIČKY (Řádek 0)
                 const headerRow = rows[0];
                 const validColumnIndices = []; 
                 
@@ -413,7 +420,6 @@
                 
                 if (validColumnIndices.length === 0) continue;
 
-                // 2. ITERACE DAT (od řádku 1)
                 let currentSupplier = null;
 
                 for (let r=1; r<rows.length; r++){
@@ -427,7 +433,6 @@
                   
                   if (hasA) {
                     const str = String(valA).trim();
-                    // Ochrana proti načtení hlavičky jako dat (pokud A="Dodavatel")
                     if(str.toLowerCase() === 'dodavatel' || str.toLowerCase() === 'supplier') continue;
                     currentSupplier = str;
                   }
@@ -498,8 +503,16 @@
     var fileEl = document.getElementById('file');
     var statusEl = document.getElementById('status');
     var errorEl = document.getElementById('error');
-    var progressBar = document.getElementById('progressBar');
-    var progressText = document.getElementById('progressText');
+    
+    // Elementy pro Upload Bar
+    var barUpload = document.getElementById('barUpload');
+    var txtUpload = document.getElementById('txtUpload');
+    
+    // Elementy pro Process Bar
+    var processBox = document.getElementById('processBox');
+    var barProcess = document.getElementById('barProcess');
+    var txtProcess = document.getElementById('txtProcess');
+
     var previewTBody = document.querySelector('#previewTable tbody');
     var summaryBox = document.getElementById('summary');
     var lastArrayBuffer = null;
@@ -511,14 +524,14 @@
       } else if (msg.type === 'status'){
          statusEl.textContent = 'Stav: ' + msg.info;
       } else if (msg.type === 'progress'){
-        setProg(msg.value);
+        setProcessProg(msg.value);
         statusEl.textContent = 'Stav: ' + msg.info;
       } else if (msg.type === 'error'){
         errorEl.textContent = 'Chyba: ' + msg.message;
         statusEl.textContent = 'Stav: chyba.';
-        setProg(0);
+        setProcessProg(0);
       } else if (msg.type === 'preview' || msg.type === 'export'){
-        setProg(100);
+        setProcessProg(100);
         statusEl.textContent = 'Stav: hotovo.';
         renderPreview(msg.preview);
         renderSummary(msg.summary);
@@ -529,22 +542,22 @@
     function handleFileSelect(){
       var f = fileEl.files[0];
       if (!f) return;
-      resetUI(false); 
+      // Resetujeme jen Process bar, Upload bar začínáme plnit
+      resetProcessUIOnly(); 
       document.getElementById('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
       statusEl.textContent = 'Nahrávám soubor...';
+      
       var reader = new FileReader();
       reader.onprogress = function(data) {
         if (data.lengthComputable) {
           var progress = parseInt( ((data.loaded / data.total) * 100), 10 );
-          setProg(progress);
-          progressText.textContent = progress + '% (čtení disku)';
+          setUploadProg(progress);
         }
       };
       reader.onload = function(e){
         lastArrayBuffer = e.target.result;
-        setProg(100);
+        setUploadProg(100);
         statusEl.textContent = 'Soubor připraven v paměti.';
-        progressText.textContent = '100% (připraveno)';
       };
       reader.onerror = function(){ errorEl.textContent = 'Chyba čtení souboru.'; };
       reader.readAsArrayBuffer(f);
@@ -557,7 +570,8 @@
       if(!lastArrayBuffer) { statusEl.textContent='Nahrajte soubor!'; return; }
       previewTBody.innerHTML = '';
       errorEl.textContent = '';
-      setProg(0);
+      // Aktivujeme Process bar
+      setProcessProg(1); 
       statusEl.textContent = 'Spouštím analýzu...';
       
       xlsxWorker.postMessage({
@@ -590,22 +604,34 @@
       var a = document.createElement('a'); a.href=u; a.download=name; 
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
-    function setProg(p){
-      progressBar.style.width = p + '%';
-      progressText.textContent = p + '%';
+    
+    /* ===== Progress Helpers ===== */
+    function setUploadProg(p){
+      barUpload.style.width = p + '%';
+      txtUpload.textContent = p + '%';
     }
-    function resetProgress(){
-      setProg(0);
-      statusEl.textContent = 'Stav: připraveno...';
+    function setProcessProg(p){
+      processBox.style.opacity = '1';
+      barProcess.style.width = p + '%';
+      txtProcess.textContent = p + '%';
     }
-    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-    function fmt(n){ return new Intl.NumberFormat('cs-CZ').format(n); }
-    function resetUI(clearFile=true){ 
-      if(clearFile) { fileEl.value = ''; lastArrayBuffer = null; }
+    function resetProcessUIOnly(){
+      processBox.style.opacity = '0.6';
+      barProcess.style.width = '0%';
+      txtProcess.textContent = '0% (neaktivní)';
       previewTBody.innerHTML = '';
       summaryBox.innerHTML = '';
       errorEl.textContent = '';
-      setProg(0);
+    }
+    function resetUI(clearFile){ 
+      if(clearFile) { 
+        fileEl.value = ''; 
+        lastArrayBuffer = null; 
+        setUploadProg(0); 
+        document.getElementById('fileInfo').textContent = '';
+        statusEl.textContent = 'Stav: připraveno (čekám na soubor)…';
+      }
+      resetProcessUIOnly();
     }
   </script>
 </body>
