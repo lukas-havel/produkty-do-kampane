@@ -182,8 +182,9 @@
   <header>
     <h1>Produkty do kampaně — filtr & export XLSX</h1>
     <p class="hint">
-      Nástroj projde <strong>všechny listy</strong> v souboru (měsíce), ignoruje list "Data".<br>
-      Agreguje <strong>Dodavatele</strong>, <strong>Produkty</strong> a sčítá <strong>Obraty</strong> napříč celým obdobím.
+      Zpracovává listy (měsíce). Ignoruje list "Data".<br>
+      <strong>Logika:</strong> Sloupec A + prázdný zbytek řádku = <strong>Dodavatel</strong>.<br>
+      Sloupec A + čísla v řádku = <strong>Produkt</strong> (sčítá se celý řádek).
     </p>
   </header>
   <div class="grid">
@@ -194,11 +195,11 @@
       <input type="file" id="file" accept=".xlsx,.xls" onchange="introspectFile()" />
       <div class="controls-row">
         <div style="flex:1">
-          <label for="dateFrom">Datum od</label>
+          <label for="dateFrom">Datum od (dle názvu listu)</label>
           <input type="date" id="dateFrom" />
         </div>
         <div style="flex:1">
-          <label for="dateTo">Datum do</label>
+          <label for="dateTo">Datum do (dle názvu listu)</label>
           <input type="date" id="dateTo" />
         </div>
       </div>
@@ -233,7 +234,7 @@
     <!-- VÝSTUP / NÁHLED -->
     <main class="card">
       <h2>Náhled (Top 200 dle filtrů)</h2>
-      <div class="muted">Data jsou agregována ze všech načtených listů (kromě "Data").</div>
+      <div class="muted">Data jsou agregována ze všech načtených listů.</div>
       <table id="previewTable">
         <thead>
           <tr>
@@ -251,39 +252,35 @@
   <script>
     const workerCode = `
       /* ===== UTIL ===== */
-      function parseExcelDate(v){
-        if (v == null) return null;
-        if (v instanceof Date) return v;
-        if (typeof v === 'number'){
-          const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-          return isNaN(d.getTime()) ? null : d;
-        }
-        const d = new Date(String(v));
-        return isNaN(d.getTime()) ? null : d;
-      }
+      function norm(s){ return String(s||'').toLowerCase().trim(); }
+      
+      // Pokus o parsování čísla z čehokoliv (např. "32 000", "32 000,-", 32000)
       function parseNum(val){
         if (typeof val === 'number') return val;
         if (val == null) return 0;
-        const s = String(val).replace(/[^\\d,.\\- ]/g,'').replace(/\\s+/g,'').replace(/,/g,'.');
-        const n = parseFloat(s); return isNaN(n) ? 0 : n;
+        let s = String(val);
+        // Odstraní mezery, tvrdé mezery, měnu
+        s = s.replace(/\\s/g, '').replace(/\\u00a0/g, '').replace(/kč/i,'');
+        // Nahradí čárku tečkou (pro desetinná čísla)
+        s = s.replace(',', '.');
+        // Vypreparuje jen validní znaky pro číslo
+        s = s.replace(/[^0-9.-]/g, '');
+        const n = parseFloat(s);
+        return isNaN(n) ? 0 : n;
       }
-      function norm(s){ return String(s||'').toLowerCase().trim(); }
       
-      // Pokusí se zjistit měsíc z názvu listu (fallback, když není datum v buňkách)
+      // Zjistí měsíc z názvu listu
       function getMonthFromSheetName(name){
         const n = norm(name);
         const czMonths = ['leden','unor','brezen','duben','kveten','cerven','cervenec','srpen','zari','rijen','listopad','prosinec'];
         const simpleMonths = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
-        
         let idx = -1;
-        // Zkusíme najít název měsíce v řetězci
         for(let i=0; i<12; i++){
           if(n.includes(czMonths[i]) || n.includes(simpleMonths[i])) { idx = i; break; }
         }
         if(idx === -1) return null;
-        
-        // Vytvoříme datum 1. dne v měsíci aktuálního roku
         const now = new Date();
+        // Předpokládáme aktuální rok, pokud nevíme jinak
         return new Date(now.getFullYear(), idx, 1);
       }
 
@@ -328,10 +325,11 @@
             if (err){ self.postMessage({type:'error',message:err.message}); return; }
             try{
               const wb = XLSX.read(ab, { type:'array', cellDates:true, cellText:false, cellNF:false });
+              // Ignorujeme list Data
               const targetSheets = wb.SheetNames.filter(n => n.trim().toLowerCase() !== 'data');
               
               if (targetSheets.length === 0){
-                self.postMessage({type:'error',message:'Nebyly nalezeny žádné datové listy.'}); 
+                self.postMessage({type:'error',message:'Nebyly nalezeny žádné vhodné listy (všechny odfiltrovány).'}); 
                 return; 
               }
 
@@ -348,111 +346,65 @@
                 const ws = wb.Sheets[sheetName];
                 if (!ws) continue;
                 
-                // Načteme s header:1, abychom měli pole polí
+                // Načteme řádky (array of arrays)
                 const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
-                if (!rows || rows.length < 2) continue; 
+                if (!rows || rows.length < 1) continue; 
 
-                // === 1. Detekce data listu ===
-                // Zkusíme najít datum v buňkách (řádky 0-20, sloupce 0-10)
-                let sheetDate = null;
-                const limitR = Math.min(rows.length, 25);
-                
-                for(let r=0; r<limitR; r++){
-                  const row = rows[r] || [];
-                  for(let c=0; c<Math.min(row.length, 10); c++){
-                    const d = parseExcelDate(row[c]);
-                    if(d && !isNaN(d.getTime())) { 
-                      // Ochrana proti "rok 1900" (Excel prázdné datum = 0)
-                      if(d.getFullYear() > 2000) { sheetDate = d; break; }
+                // Zjistíme datum listu (pro filtr od/do)
+                const sheetDate = getMonthFromSheetName(sheetName);
+                if (sheetDate) {
+                  if (dateFrom && sheetDate < dateFrom) continue;
+                  if (dateTo && sheetDate > dateTo) continue;
+                }
+
+                let currentSupplier = null;
+
+                // Iterace řádků
+                for (let r=0; r<rows.length; r++){
+                  const row = rows[r]; 
+                  if (!row || row.length === 0) continue; 
+                  
+                  // Sloupec A (index 0)
+                  const valA = row[0];
+                  if (valA == null || String(valA).trim() === '') continue; // A nesmí být prázdné
+                  const textA = String(valA).trim();
+
+                  // Analýza zbytku řádku (sloupce B a dál)
+                  let rowSum = 0;
+                  let hasValues = false;
+                  
+                  for(let c=1; c<row.length; c++){
+                    const cell = row[c];
+                    if (cell != null && String(cell).trim() !== '') {
+                      hasValues = true;
+                      const n = parseNum(cell);
+                      rowSum += n;
                     }
                   }
-                  if(sheetDate) break;
-                }
 
-                // Pokud v buňkách není datum, zkusíme název listu
-                if (!sheetDate) {
-                  sheetDate = getMonthFromSheetName(sheetName);
-                }
-
-                // === 2. Filtrace podle data ===
-                // Pokud uživatel ZADAL filtr dat, a my nemáme datum listu -> přeskočíme list?
-                // Raději ne, pokud uživatel zadal filtr, ale my datum neznáme, nemůžeme rozhodnout.
-                // Logika: Pokud datum známe, zkontrolujeme ho. Pokud neznáme, pustíme to (pokud filtr není extra striktní).
-                
-                let dateOk = true;
-                if (sheetDate) {
-                  if (dateFrom && sheetDate < dateFrom) dateOk = false;
-                  if (dateTo && sheetDate > dateTo) dateOk = false;
-                } else {
-                  // Datum listu neznámé. Pokud uživatel striktně filtruje datum, 
-                  // možná bychom to měli zahodit? Zde volím: zahodit jen pokud si to uživatel přeje.
-                  // Ale pro "bezpečnost" - pokud uživatel filtruje, a my nevíme datum, raději to vynecháme, 
-                  // aby se tam nepřimíchala data z jiných let.
-                  if (dateFrom || dateTo) {
-                    // console.log('Skipping sheet ' + sheetName + ' because date unknown and filter active');
-                    // dateOk = false; // <-- Odkomentuj, pokud chceš přísný režim
-                    // Prozatím necháme projít (Fallback), neboť formát může být divný.
-                  }
-                }
-                
-                if (!dateOk) continue;
-
-                // === 3. Hledání dat (Dodavatel vs Produkt) ===
-                let currentSupplier = '';
-
-                // Procházíme řádky. Ignorujeme úplný úvod, pokud tam jsou jen hlavičky
-                // Ale pozor, někdy data začínají hned.
-                // Budeme hledat vzory.
-                
-                for (let r=0; r<rows.length; r++){
-                  const row = rows[r]; if (!row) continue;
-                  
-                  // Předpoklad: Sloupec A (index 0) má text.
-                  // Sloupec B (index 1) má číslo = Obrat.
-                  
-                  const valA = row[0];
-                  const valB = row[1]; // Obrat bývá v B
-
-                  if (valA == null || String(valA).trim() === '') continue; // A musí mít obsah
-
-                  const strA = String(valA).trim();
-                  // Zkusíme parsovat B jako číslo
-                  const numB = parseNum(valB);
-                  
-                  // Detekce: Je B prázdné/text? -> Dodavatel (Header)
-                  // Detekce: Je B číslo? -> Produkt
-                  
-                  // Pozor: "Obrat" v hlavičce je text. Takže header.
-                  // Pozor: Prázdné B je header.
-                  
-                  const isBNumber = (typeof valB === 'number') || (!isNaN(parseFloat(String(valB).replace(',','.'))) && /\d/.test(String(valB)));
-                  
-                  // Je to řádek s produktem?
-                  // Musí to mít číslo v B a to číslo nesmí být 0 (pokud nechceme nulové, ale filtr minRev to pořeší)
-                  // Také to nesmí být hlavička tabulky (kde B je text "Obrat" nebo "Částka")
-                  
-                  if (isBNumber) {
-                    // PRODUKT
-                    totalIn++;
-                    const prod = strA;
-                    
-                    // Aplikace filtrů (textových)
-                    if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
-                    if (fProd && !prod.toLowerCase().includes(fProd)) continue;
-
-                    totalAcceptedRows++;
-                    const key = currentSupplier + '\\u0001' + prod;
-                    const curr = agg.get(key);
-                    if (curr){ curr.sum += numB; curr.rows++; }
-                    else { agg.set(key, {supp:currentSupplier, prod, sum:numB, rows:1}); }
+                  // LOGIKA ROZLIŠENÍ
+                  if (!hasValues) {
+                    // Zbytek řádku je prázdný -> je to DODAVATEL
+                    // (Ignorujeme systémová slova jako "Obrat" nebo "Produkt" v hlavičkách)
+                    const lowerA = textA.toLowerCase();
+                    if(lowerA !== 'dodavatel' && lowerA !== 'produkt' && lowerA !== 'celkem') {
+                       currentSupplier = textA;
+                    }
                   } else {
-                    // DODAVATEL (nebo hlavička)
-                    // Pokud to není číslo, bereme to jako změnu kontextu dodavatele.
-                    // Ale pozor na texty jako "Celkem" nebo "Datum".
-                    // Ignorujeme slova "Dodavatel", "Produkt", "Obrat"
-                    const blackList = ['dodavatel','produkt','obrat','datum','celkem','částka','cena','množství'];
-                    if (!blackList.some(w => strA.toLowerCase().includes(w))){
-                       currentSupplier = strA;
+                    // Řádek má v sobě nějaké hodnoty -> je to PRODUKT
+                    // Musíme mít nastaveného dodavatele
+                    if (currentSupplier) {
+                      totalIn++;
+                      
+                      // Filtry
+                      if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
+                      if (fProd && !textA.toLowerCase().includes(fProd)) continue;
+                      
+                      totalAcceptedRows++;
+                      const key = currentSupplier + '\\u0001' + textA;
+                      const curr = agg.get(key);
+                      if (curr){ curr.sum += rowSum; curr.rows++; }
+                      else { agg.set(key, {supp:currentSupplier, prod:textA, sum:rowSum, rows:1}); }
                     }
                   }
                 }
@@ -568,9 +520,9 @@
     }
     function renderSummary(s){
       summaryBox.innerHTML = 
-        '<div class="item">Listů: <b>'+s.sheetCount+'</b></div>' +
-        '<div class="item">Řádků (vstup): <b>'+fmt(s.totalIn)+'</b></div>' +
-        '<div class="item">Produktů (výstup): <b>'+fmt(s.totalOut)+'</b></div>';
+        '<div class="item">Zpracované listy: <b>'+s.sheetCount+'</b></div>' +
+        '<div class="item">Nalezené produkty (vstup): <b>'+fmt(s.totalIn)+'</b></div>' +
+        '<div class="item">Produkty ve výstupu: <b>'+fmt(s.totalOut)+'</b></div>';
     }
     function triggerDownload(buf, name){
       var b = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
