@@ -147,9 +147,11 @@
     }
     .error{ color: var(--warn); margin-top: 8px; }
     .muted{ color: var(--muted); font-size: 13px; }
-    /* Loading Bar */
+    
+    /* Loading Bar - Pod inputem */
     .progress-container{
-      height: 18px; border-radius: 999px; overflow: hidden; background: rgba(2,6,23,.06); margin-top: 10px; position: relative;
+      height: 14px; border-radius: 999px; overflow: hidden; background: rgba(2,6,23,.06); 
+      margin-top: 8px; margin-bottom: 8px; position: relative;
     }
     .progress-bar{
       height:100%; width:0%; background: linear-gradient(90deg, var(--primary), var(--accent)); 
@@ -158,8 +160,9 @@
     .progress-text{
       position: absolute; top:0; left:0; width:100%; height:100%;
       display:flex; align-items:center; justify-content:center;
-      font-size: 11px; font-weight:700; color: rgba(0,0,0,0.6);
+      font-size: 10px; font-weight:700; color: rgba(0,0,0,0.6);
     }
+    
     /* Table */
     table{ width:100%; border-collapse: collapse; margin-top: 12px; table-layout: auto; }
     thead th{
@@ -195,7 +198,7 @@
     <h1>Produkty do kampaně — filtr & export XLSX</h1>
     <p class="hint">
       Zpracovává listy (měsíce). Ignoruje list "Data".<br>
-      <strong>Logika:</strong> <b>Tučné</b> písmo v sloupci A = Dodavatel. Běžné písmo = Produkt (sčítá řádek).
+      <strong>Logika:</strong> Sloupec A = <strong>Dodavatel</strong>, Sloupec B = <strong>Produkt</strong>.
     </p>
   </header>
   <div class="grid">
@@ -203,16 +206,22 @@
     <aside class="card">
       <h2>Nahrát & filtrovat</h2>
       <label for="file">Excel (.xls / .xlsx)</label>
-      <!-- Přidáno onclick pro reset progressu -->
+      
+      <!-- LOADING BAR -->
+      <div class="progress-container">
+        <div id="progressBar" class="progress-bar"></div>
+        <div id="progressText" class="progress-text">0%</div>
+      </div>
+
       <input type="file" id="file" accept=".xlsx,.xls" onclick="resetProgress()" onchange="handleFileSelect()" />
       
       <div class="controls-row">
         <div style="flex:1">
-          <label for="dateFrom">Datum od (dle názvu listu)</label>
+          <label for="dateFrom">Datum od</label>
           <input type="date" id="dateFrom" />
         </div>
         <div style="flex:1">
-          <label for="dateTo">Datum do (dle názvu listu)</label>
+          <label for="dateTo">Datum do</label>
           <input type="date" id="dateTo" />
         </div>
       </div>
@@ -239,13 +248,6 @@
       </div>
 
       <div id="status" class="status">Stav: připraveno (čekám na soubor)…</div>
-      
-      <!-- LOADING BAR -->
-      <div class="progress-container">
-        <div id="progressBar" class="progress-bar"></div>
-        <div id="progressText" class="progress-text">0%</div>
-      </div>
-      
       <div id="error" class="error"></div>
       <div id="fileInfo" class="muted"></div>
     </aside>
@@ -277,7 +279,6 @@
         if (typeof val === 'number') return val;
         if (val == null) return 0;
         let s = String(val);
-        // Odstraní mezery, tvrdé mezery, měnu
         s = s.replace(/\\s/g, '').replace(/\\u00a0/g, '').replace(/kč/i,'');
         s = s.replace(',', '.');
         s = s.replace(/[^0-9.-]/g, '');
@@ -328,123 +329,94 @@
           loadXLSX(function(err){
             if (err){ self.postMessage({type:'error',message:err.message}); return; }
             try{
-              // DŮLEŽITÉ: cellStyles: true pro detekci Bold
-              const wb = XLSX.read(ab, { type:'array', cellStyles:true, cellHTML:false, cellNF:false });
+              // KROK 1: Rychlý sken listů
+              self.postMessage({type:'status', info:'Skenuji seznam listů...'});
+              const wbMeta = XLSX.read(ab, { type:'array', bookSheets:true });
+              let allSheets = wbMeta.SheetNames;
               
-              const targetSheets = wb.SheetNames.filter(n => n.trim().toLowerCase() !== 'data');
-              if (targetSheets.length === 0){
-                self.postMessage({type:'error',message:'Žádné listy k importu.'}); 
+              let sheetsToParse = [];
+              for(let name of allSheets){
+                 if(name.trim().toLowerCase() === 'data') continue;
+                 if (dateFrom || dateTo) {
+                   const sDate = getMonthFromSheetName(name);
+                   if (!sDate) continue; 
+                   if (dateFrom && sDate < dateFrom) continue;
+                   if (dateTo && sDate > dateTo) continue;
+                 }
+                 sheetsToParse.push(name);
+              }
+
+              if (sheetsToParse.length === 0){
+                self.postMessage({type:'error',message:'Žádné listy neodpovídají zvolenému období.'}); 
                 return; 
               }
 
+              // KROK 2: Plné načtení
+              self.postMessage({type:'status', info:'Načítám data z ' + sheetsToParse.length + ' listů...'});
+              const wb = XLSX.read(ab, { 
+                type:'array', 
+                cellStyles:false, // Už nepotřebujeme styly!
+                cellHTML:false, 
+                cellNF:false,
+                sheets: sheetsToParse 
+              });
+
               const agg = new Map(); 
               let totalIn = 0;
-              let totalAcceptedRows = 0;
               let processedSheets = 0;
 
-              for (const sheetName of targetSheets) {
+              for (const sheetName of sheetsToParse) {
                 processedSheets++;
-                // Progress: 50% start, 100% end
-                const pct = 50 + Math.round((processedSheets / targetSheets.length) * 50);
-                self.postMessage({type:'progress', value: pct, info: 'Zpracovávám: ' + sheetName});
+                const pct = Math.round((processedSheets / sheetsToParse.length) * 100);
+                self.postMessage({type:'progress', value: pct, info: 'Analyzuji: ' + sheetName});
 
                 const ws = wb.Sheets[sheetName];
                 if (!ws) continue;
                 
-                // Datum listu
-                const sheetDate = getMonthFromSheetName(sheetName);
-                if (sheetDate) {
-                  if (dateFrom && sheetDate < dateFrom) continue;
-                  if (dateTo && sheetDate > dateTo) continue;
-                }
-
-                // Range pro iteraci
-                const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+                const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
                 let currentSupplier = null;
 
-                // Iterace řádků
-                for (let r=range.s.r; r<=range.e.r; r++){
-                  // Buňka A
-                  const cellAddrA = XLSX.utils.encode_cell({c:0, r:r});
-                  const cellA = ws[cellAddrA];
+                for (let r=0; r<rows.length; r++){
+                  const row = rows[r]; if(!row) continue;
                   
-                  if (!cellA || !cellA.v) continue; // Prázdné A přeskočit
-                  const textA = String(cellA.v).trim();
+                  // Sloupec A = Dodavatel
+                  // Sloupec B = Produkt
                   
-                  // DETEKCE TUČNÉHO PÍSMA (BOLD)
-                  // Standardní knihovna často vrátí cell.s jako undefined v Community edici, 
-                  // ale pokud soubor obsahuje styly, může to zafungovat.
-                  // Pokud style chybí, použijeme fallback: 
-                  // Dodavatel = Sloupec A má text + Zbytek řádku je prázdný?
-                  // Produkt = Sloupec A má text + V řádku jsou čísla?
+                  const valA = row[0];
+                  const valB = row[1];
                   
-                  let isBold = false;
-                  if (cellA.s && cellA.s.font && (cellA.s.font.bold || cellA.s.font.b)) {
-                    isBold = true;
+                  const hasA = (valA != null && String(valA).trim() !== '');
+                  const hasB = (valB != null && String(valB).trim() !== '');
+                  
+                  // Pokud je v A text, nastavíme ho jako aktuálního dodavatele
+                  if (hasA) {
+                    currentSupplier = String(valA).trim();
                   }
-
-                  // Zjištění součtu řádku (hledáme čísla ve sloupcích B a dál)
-                  let rowSum = 0;
-                  let hasNumbers = false;
                   
-                  // Projdeme sloupce B až konec range
-                  for(let c=1; c<=range.e.c; c++){
-                     const cellAddr = XLSX.utils.encode_cell({c:c, r:r});
-                     const cell = ws[cellAddr];
-                     if (cell && cell.v != null) {
-                       const n = parseNum(cell.v);
-                       // Pokud je v buňce něco co vypadá jako číslo (není 0 nebo je to textová reprezentace čísla)
-                       // Pozn: parseNum vrací 0 pro prázdno. 
-                       // Pokud je to číslo > 0 nebo < 0, je to jasné.
-                       if (n !== 0) {
-                         hasNumbers = true;
-                         rowSum += n;
-                       } else {
-                         // I nula může být číslo, pokud to není prázdný string
-                         if (String(cell.v).trim() !== '') hasNumbers = true;
+                  // Pokud je v B text (Produkt), a máme dodavatele, zpracujeme
+                  if (hasB && currentSupplier) {
+                     const prodName = String(valB).trim();
+                     
+                     // Zjistíme součet v řádku (sloupce C a dál)
+                     let rowSum = 0;
+                     for(let c=2; c<row.length; c++){ // začínáme od C (index 2)
+                       const cell = row[c];
+                       if(cell != null) {
+                         const n = parseNum(cell);
+                         if(n !== 0) rowSum += n;
                        }
                      }
-                  }
-
-                  // LOGIKA ROZHODOVÁNÍ
-                  // Pokud jsme detekovali Bold -> Je to Dodavatel
-                  // Pokud Bold nefunguje (knihovna), fallback: Pokud v řádku nejsou čísla -> Dodavatel
-                  
-                  // Preferujeme BOLD, pokud není info o stylu, fallbackujeme na obsah
-                  let isSupplier = isBold;
-                  if (!cellA.s) {
-                     // Fallback: Pokud v řádku NENÍ žádné číslo (ani 0), je to asi Dodavatel
-                     // Ale pozor, produkt bez prodeje může mít taky prázdno.
-                     // Zde spoléháme na uživatele, že Dodavatel je Bold. 
-                     // Pokud knihovna neumí Bold, musíme zkusit kontext: 
-                     // Header řádek (první v listu s daty)? Ne, to je datum.
                      
-                     // Zkusme toto: Dodavatelé v datech nemívají čísla vpravo.
-                     // Produkty mívají (nebo prázdno). 
-                     // Těžko rozlišit "Produkt bez prodeje" a "Dodavatel".
-                     // Ale na screenshotu má dodavatel prázdný řádek.
-                     // Produkt "AA393f3" má taky prázdný řádek.
-                     // JEDINÁ ŠANCE JE TEN STYL. Doufejme, že to XLSX.read načte.
-                  }
-
-                  if (isBold) {
-                    currentSupplier = textA;
-                  } else {
-                    // Není tučné -> Produkt
-                    // Musíme mít dodavatele
-                    if (currentSupplier) {
-                      totalIn++;
-                      
-                      // Textové filtry
-                      if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
-                      if (fProd && !textA.toLowerCase().includes(fProd)) continue;
-                      
-                      totalAcceptedRows++;
-                      const key = currentSupplier + '\\u0001' + textA;
-                      const curr = agg.get(key);
-                      if (curr){ curr.sum += rowSum; curr.rows++; }
-                      else { agg.set(key, {supp:currentSupplier, prod:textA, sum:rowSum, rows:1}); }
-                    }
+                     totalIn++;
+                     
+                     // Textové filtry
+                     if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
+                     if (fProd && !prodName.toLowerCase().includes(fProd)) continue;
+                     
+                     const key = currentSupplier + '\\u0001' + prodName;
+                     const curr = agg.get(key);
+                     if (curr){ curr.sum += rowSum; curr.rows++; }
+                     else { agg.set(key, {supp:currentSupplier, prod:prodName, sum:rowSum, rows:1}); }
                   }
                 }
               }
@@ -471,11 +443,11 @@
                 fileName = 'Export_kampan.xlsx';
               }
 
-              // Náhled max 50
+              // Náhled
               self.postMessage({
                 type: wantPreview ? 'preview' : 'export',
                 preview: result.slice(0, 50).map(x => ({Dodavatel:x.supp, Produkt:x.prod, Obrat:x.sum})),
-                summary: { totalIn, totalOut: result.length, totalAcceptedRows, sheetCount: targetSheets.length },
+                summary: { totalIn, totalOut: result.length, sheetCount: sheetsToParse.length },
                 xlsxBuffer, fileName
               });
 
@@ -503,6 +475,8 @@
       var msg = ev.data || {};
       if (msg.type === 'ready'){
         statusEl.textContent = 'Stav: připraveno (čekám na soubor)…';
+      } else if (msg.type === 'status'){
+         statusEl.textContent = 'Stav: ' + msg.info;
       } else if (msg.type === 'progress'){
         setProg(msg.value);
         statusEl.textContent = 'Stav: ' + msg.info;
@@ -519,33 +493,28 @@
       }
     };
 
-    // Obsluha nahrávání souboru s progress barem
     function handleFileSelect(){
       var f = fileEl.files[0];
       if (!f) return;
       
-      resetUI(false); // nemazat input
+      resetUI(false); 
       document.getElementById('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
-      statusEl.textContent = 'Nahrávám soubor do paměti...';
+      statusEl.textContent = 'Nahrávám soubor...';
       
       var reader = new FileReader();
-      
-      // Progress nahrávání (0-50%)
       reader.onprogress = function(data) {
         if (data.lengthComputable) {
-          var progress = parseInt( ((data.loaded / data.total) * 50), 10 );
+          var progress = parseInt( ((data.loaded / data.total) * 100), 10 );
           setProg(progress);
           progressText.textContent = progress + '% (čtení disku)';
         }
       };
-
       reader.onload = function(e){
         lastArrayBuffer = e.target.result;
-        setProg(50);
-        statusEl.textContent = 'Soubor nahrán. Připraveno k filtraci.';
-        progressText.textContent = '50% (připraveno)';
+        setProg(100);
+        statusEl.textContent = 'Soubor připraven v paměti.';
+        progressText.textContent = '100% (připraveno)';
       };
-      
       reader.onerror = function(){ errorEl.textContent = 'Chyba čtení souboru.'; };
       reader.readAsArrayBuffer(f);
     }
@@ -557,7 +526,8 @@
       if(!lastArrayBuffer) { statusEl.textContent='Nahrajte soubor!'; return; }
       previewTBody.innerHTML = '';
       errorEl.textContent = '';
-      statusEl.textContent = 'Analyzuji strukturu (to může chvíli trvat)...';
+      setProg(0);
+      statusEl.textContent = 'Spouštím analýzu...';
       
       xlsxWorker.postMessage({
         type:'process',
@@ -572,16 +542,16 @@
     }
 
     function renderPreview(rows){
-      if(!rows.length) { previewTBody.innerHTML='<tr><td colspan="3" style="text-align:center;padding:20px">Žádná data (nebo nebyl detekován tučný text)</td></tr>'; return; }
+      if(!rows.length) { previewTBody.innerHTML='<tr><td colspan="3" style="text-align:center;padding:20px">Žádná data</td></tr>'; return; }
       previewTBody.innerHTML = rows.map(r => 
         '<tr><td>'+esc(r.Dodavatel)+'</td><td>'+esc(r.Produkt)+'</td><td class="num">'+fmt(r.Obrat)+'</td></tr>'
       ).join('');
     }
     function renderSummary(s){
       summaryBox.innerHTML = 
-        '<div class="item">Listů: <b>'+s.sheetCount+'</b></div>' +
+        '<div class="item">Zpracované listy: <b>'+s.sheetCount+'</b></div>' +
         '<div class="item">Nalezené produkty: <b>'+fmt(s.totalIn)+'</b></div>' +
-        '<div class="item">Po filtraci: <b>'+fmt(s.totalOut)+'</b></div>';
+        '<div class="item">Výsledek (po filtru): <b>'+fmt(s.totalOut)+'</b></div>';
     }
     function triggerDownload(buf, name){
       var b = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
