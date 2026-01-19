@@ -4,48 +4,202 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Produkty do kampaně — filtr & export XLSX (agregace bez datumu v exportu)</title>
+  <title>Produkty do kampaně — filtr & export XLSX</title>
   <style>
+    /* ===== Design tokens ===== */
     :root{
       color-scheme: light dark;
-      --bg:#f7f9fc; --bg2:#eef3fb; --text:#1f2937; --muted:#6b7280;
-      --card:#fff; --border:#e5e7eb; --primary:#1565c0; --accent:#0fb9b1; --warn:#dc2626;
-      --radius:14px; --shadow:0 10px 24px rgba(31,41,55,.08);
+
+      /* Světlé schéma */
+      --bg1: #f6f9ff;
+      --bg2: #eef3ff;
+      --glass: rgba(255,255,255,0.65);
+      --glass-border: rgba(17,24,39,0.08);
+      --text: #0f172a;
+      --muted: #64748b;
+
+      --primary:#3b82f6; /* modrá */
+      --primary-600:#2563eb;
+      --primary-700:#1d4ed8;
+      --accent:#10b981;  /* zelená */
+      --accent-600:#059669;
+      --warn:#ef4444;
+
+      --tab-head:#f8fafc;
+      --row-hover:#f1f5f9;
+
+      --radius:16px;
+      --radius-sm:12px;
+      --shadow: 0 12px 40px rgba(2, 6, 23, .10);
+      --shadow-soft: 0 6px 20px rgba(2, 6, 23, .08);
+
+      --focus: 0 0 0 3px rgba(59,130,246,.35);
+
+      --grad-1:#e0f2fe; /* cyan‑100 */
+      --grad-2:#e9d5ff; /* purple‑100 */
+
+      --progress:#2563eb;
+      --card-stroke: rgba(30,41,59,.12);
     }
-    html,body{height:100%;background:linear-gradient(160deg,var(--bg),var(--bg2));color:var(--text);
-      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;margin:0}
-    header{padding:20px 24px 8px}
-    h1{margin:0;font-size:clamp(22px,3vw,28px)}
-    .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
 
-    .grid{display:grid;grid-template-columns:1fr;gap:18px;padding:0 24px 24px}
-    @media(min-width:1180px){.grid{grid-template-columns:420px 1fr}}
-    .grid>*{min-width:0}
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg1: #0b1220;
+        --bg2: #101626;
+        --glass: rgba(17,24,39,0.55);
+        --glass-border: rgba(148,163,184,0.18);
+        --text: #e5e7eb;
+        --muted: #94a3b8;
 
-    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-      box-shadow:var(--shadow);padding:16px;overflow:hidden}
-    .card h2{margin:0 0 10px;font-size:clamp(18px,2.2vw,22px)}
-    label{font-weight:600;display:block;margin-bottom:6px}
-    input,select{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fff}
-    .controls-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    .btn{display:inline-block;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer}
-    .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
-    .btn-accent{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .btn-danger{background:var(--warn);color:#fff;border-color:var(--warn)}
+        --tab-head:#0f172a;
+        --row-hover:#0b1220;
 
-    .status{font-size:13px;padding:8px 10px;border:1px dashed var(--border);border-radius:10px;background:rgba(0,0,0,.03);margin-top:8px}
-    .error{color:var(--warn);margin-top:6px}
-    .muted{color:var(--muted);font-size:13px}
+        --shadow: 0 14px 44px rgba(0,0,0,.45);
+        --shadow-soft: 0 8px 26px rgba(0,0,0,.38);
 
-    .progress{height:10px;background:#eef3fb;border-radius:6px;overflow:hidden;margin-top:8px}
-    .progress>div{height:100%;width:0;background:#1565c0}
+        --grad-1:#0ea5e9; /* cyan‑500 */
+        --grad-2:#8b5cf6; /* violet‑500 */
 
-    table{width:100%;border-collapse:collapse;margin-top:12px;table-layout:auto}
-    thead th{background:#f8fafc;padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}
-    tbody td{border-top:1px solid var(--border);padding:8px 10px}
-    td.num{text-align:right}
-    .kv{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    .kv .item{background:#eef3fb;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px}
+        --card-stroke: rgba(148,163,184,.18);
+      }
+    }
+
+    /* ===== Base ===== */
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      line-height: 1.55;
+      background:
+        radial-gradient(1200px 1200px at 10% -10%, var(--grad-1) 0%, transparent 50%),
+        radial-gradient(1200px 1200px at 110% 10%, var(--grad-2) 0%, transparent 50%),
+        linear-gradient(160deg,var(--bg1),var(--bg2));
+    }
+
+    * { box-sizing: border-box; }
+
+    header{
+      padding: 28px 24px 10px;
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+    h1{
+      margin:0;
+      font-size: clamp(22px, 2.6vw, 32px);
+      letter-spacing: -0.02em;
+    }
+    .hint{ color:var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+    /* Layout */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+      padding: 0 24px 28px;
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+    @media (min-width: 1180px){
+      .grid{ grid-template-columns: 430px 1fr; }
+    }
+    .grid > * { min-width: 0; }
+
+    /* Cards (glass) */
+    .card{
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+    .card h2{ margin:0 0 12px; font-size: clamp(18px, 2.1vw, 22px); }
+
+    /* Form */
+    label{ font-weight: 600; display:block; margin-bottom: 6px; }
+    input[type="file"],
+    input[type="date"],
+    input[type="number"],
+    input[type="text"],
+    select{
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--card-stroke);
+      background: rgba(255,255,255,.85);
+      color: var(--text);
+      outline: none;
+      transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
+    }
+    @media (prefers-color-scheme: dark){
+      input[type="file"],
+      input[type="date"],
+      input[type="number"],
+      input[type="text"],
+      select{ background: rgba(15,23,42,.6); }
+    }
+    input:focus, select:focus{ box-shadow: var(--focus); border-color: var(--primary-600); }
+
+    .controls-row{ display:flex; gap:10px; flex-wrap: wrap; margin-top: 10px; }
+    .btn{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 10px 14px; border-radius: 12px;
+      border: 1px solid var(--card-stroke);
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+    .btn:active{ transform: translateY(0); }
+
+    .btn-primary{ background: linear-gradient(180deg, var(--primary), var(--primary-600)); color: #fff; border-color: transparent; }
+    .btn-primary:hover{ background: linear-gradient(180deg, var(--primary-600), var(--primary-700)); }
+    .btn-accent{ background: linear-gradient(180deg, var(--accent), var(--accent-600)); color:#fff; border-color: transparent; }
+    .btn-danger{ background: linear-gradient(180deg, #f87171, var(--warn)); color:#fff; border-color: transparent; }
+
+    .status{
+      font-size: 13px; padding:10px 12px;
+      border:1px dashed var(--card-stroke);
+      border-radius: 12px;
+      background: rgba(2,6,23,.04);
+      margin-top: 10px;
+    }
+    .error{ color: var(--warn); margin-top: 8px; }
+    .muted{ color: var(--muted); font-size: 13px; }
+
+    .progress{ height: 10px; border-radius: 999px; overflow: hidden; background: rgba(2,6,23,.06); margin-top: 10px; }
+    .progress > div{ height:100%; width:0; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width .25s ease; }
+
+    /* Table */
+    table{ width:100%; border-collapse: collapse; margin-top: 12px; table-layout: auto; }
+    thead th{
+      background: var(--tab-head); padding: 10px 12px;
+      border-bottom: 1px solid var(--card-stroke); text-align: left; font-weight: 700;
+      position: sticky; top: 0; z-index: 1;
+    }
+    tbody td{ border-top: 1px solid var(--card-stroke); padding: 10px 12px; }
+    tbody tr{ transition: background-color .15s ease; }
+    tbody tr:hover{ background: var(--row-hover); }
+    td.num{ text-align: right; }
+    .kv{ display:flex; gap:8px; flex-wrap: wrap; margin-top: 10px; }
+    .kv .item{
+      background: rgba(255,255,255,.5);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 8px 10px; font-size: 13px;
+      backdrop-filter: blur(6px);
+    }
+    @media (prefers-color-scheme: dark){
+      .kv .item{ background: rgba(15,23,42,.45); }
+    }
+
+    /* Micro-helpers */
+    .pill{
+      display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
+      background: rgba(59,130,246,.15); color: var(--primary-600);
+    }
   </style>
 </head>
 <body>
@@ -54,7 +208,7 @@
     <p class="hint">
       Vstup 1 (long): <strong>Produkt</strong>, <strong>Dodavatel</strong>, <strong>Datum</strong>, <strong>Obrat</strong>.<br>
       Vstup 2 (systémový report): řádky 1–4 přeskočit, v <strong>A</strong> dodavatel (tučně) a pod ním produkty; v <strong>B</strong> obrat; <strong>ř. 5</strong> = datum (den pro všechny řádky).<br>
-      <em>Export: bez sloupce datum — agregace za zvolené období → Dodavatel, Produkt, Obrat (součet).</em>
+      <em>Export: bez sloupce datum — agregace za zvolené období → Dodavatel, Produkt, Obrat (součet). Minimální obrat se uplatňuje až po součtu.</em>
     </p>
   </header>
 
@@ -67,10 +221,6 @@
       <input type="file" id="file" accept=".xlsx,.xls" onchange="introspectFile()" />
 
       <div class="controls-row">
-        <div style="flex:1">
-          <label for="sheetSel">List (sheet)</label>
-          <select id="sheetSel"></select>
-        </div>
         <div style="flex:1">
           <label for="dateFrom">Datum od</label>
           <input type="date" id="dateFrom" />
@@ -107,7 +257,7 @@
       <div id="error" class="error"></div>
       <div id="fileInfo" class="muted"></div>
 
-      <h2 style="margin-top:14px">Detekované hlavičky</h2>
+      <h2 style="margin-top:14px">Detekované hlavičky <span class="pill">AUTO</span></h2>
       <div id="headersBox" class="kv"></div>
     </aside>
 
@@ -154,7 +304,7 @@
       function parseNum(val){
         if (typeof val === 'number') return val;
         if (val == null) return 0;
-        const s = String(val).replace(/[^\d,.\- ]/g,'').replace(/\\s+/g,'').replace(/,/g,'.');
+        const s = String(val).replace(/[^\\d,.\\- ]/g,'').replace(/\\s+/g,'').replace(/,/g,'.');
         const n = parseFloat(s); return isNaN(n) ? 0 : n;
       }
 
@@ -182,18 +332,16 @@
             if (err){ self.postMessage({type:'error',message:err.message}); return; }
             try{
               const wb = XLSX.read(msg.arrayBuffer, { type:'array' });
-              const sheetNames = wb.SheetNames.slice();
-              const ws = wb.Sheets[sheetNames[0]];
+              const ws = wb.Sheets[wb.SheetNames[0]];
               const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
               const headers = rows && rows.length ? (rows[0] || []) : [];
-              self.postMessage({type:'introspected', sheetNames, headers});
+              self.postMessage({type:'introspected', headers});
             }catch(e){ self.postMessage({type:'error',message:e.message}); }
           });
         }
 
         if (msg.type === 'filter_export'){
           const ab = msg.arrayBuffer;
-          const sheetName = msg.sheetName || null;
           const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
           const dateTo   = msg.dateTo   ? new Date(msg.dateTo)   : null;
           const minRev   = typeof msg.minRevenue === 'number' ? msg.minRevenue : 0;
@@ -206,18 +354,14 @@
 
             try{
               const wb = XLSX.read(ab, { type:'array', cellDates:true, cellText:false, cellNF:false });
-              const targetSheet = sheetName || wb.SheetNames[0];
+              const targetSheet = wb.SheetNames[0];
               const ws = wb.Sheets[targetSheet];
               if (!ws){ self.postMessage({type:'error',message:'List (sheet) nebyl nalezen'}); return; }
 
               const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
               if (!rows || rows.length < 2){ self.postMessage({type:'error',message:'V listu nejsou data'}); return; }
 
-              /* === Auto detekce módu ===
-                 MODE_A (long): hlavičky obsahují Produkt/Dodavatel/Datum/Obrat
-                 MODE_B (report): řádky 1–4 prázdné/hlaviční, ř.5 obsahuje datum a dál střídání A=Dodavatel (B prázdná) + produkty (A text, B číslo)
-                 Pozn.: Datum se používá jen k filtraci — v exportu ho neuvádíme (agregujeme za období).
-              */
+              /* === Auto detekce módu === */
               let mode = 'A';
               const headers = rows[0] || [];
               let idxProd=-1, idxSupp=-1, idxDate=-1, idxRev=-1;
@@ -231,13 +375,15 @@
               }
               if (idxDate<0 || idxRev<0){ mode = 'B'; }
 
-              // AGREGÁTOR podle (Dodavatel, Produkt)
+              // AGREGÁTOR (Dodavatel, Produkt)
               const agg = new Map(); // key = supp + '\u0001' + prod → {supp, prod, sum, rows}
-              let totalIn = 0, totalOutRows = 0;
+              let totalIn = 0, totalAcceptedRows = 0;
 
               if (mode === 'A'){
                 if (idxProd<0) idxProd = 0;
                 if (idxSupp<0) idxSupp = 1;
+
+                // Doplň heuristiku, když chybí date/rev
                 if (idxDate<0 || idxRev<0){
                   for (let c=0;c<headers.length;c++){
                     let dateScore=0, numScore=0;
@@ -262,11 +408,10 @@
                   if (!dat) continue;
                   if (dateFrom && dat<dateFrom) continue;
                   if (dateTo && dat>dateTo) continue;
-                  if (rev < minRev) continue;
                   if (fSupp && !supp.toLowerCase().includes(fSupp)) continue;
                   if (fProd && !prod.toLowerCase().includes(fProd)) continue;
 
-                  totalOutRows++;
+                  totalAcceptedRows++;
                   const key = supp + '\\u0001' + prod;
                   const curr = agg.get(key);
                   if (curr){ curr.sum += rev; curr.rows += 1; }
@@ -312,11 +457,10 @@
                     const dat = sheetDate;
                     if (dateFrom && dat<dateFrom) continue;
                     if (dateTo && dat>dateTo) continue;
-                    if (rev < minRev) continue;
                     if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
                     if (fProd && !prod.toLowerCase().includes(fProd)) continue;
 
-                    totalOutRows++;
+                    totalAcceptedRows++;
                     const key = currentSupplier + '\\u0001' + prod;
                     const curr = agg.get(key);
                     if (curr){ curr.sum += rev; curr.rows += 1; }
@@ -327,10 +471,14 @@
                 }
               }
 
-              // Připrav OUT (Dodavatel, Produkt, Obrat_součet)
-              const outArr = Array.from(agg.values()).map(x => [x.supp, x.prod, x.sum]);
+              // >>> Filtr min. obratu AŽ po agregaci <<<
+              const aggregated = Array.from(agg.values());
+              const filteredAgg = aggregated.filter(x => x.sum >= minRev);
 
-              // Export XLSX (bez sloupce datum)
+              // Připrav OUT
+              const outArr = filteredAgg.map(x => [x.supp, x.prod, x.sum]);
+
+              // Export XLSX
               let xlsxBuffer = null, fileName = null;
               if (!wantPreview){
                 const hdr = ['Dodavatel','Produkt','Obrat'];
@@ -350,13 +498,13 @@
                 fileName = 'Produkty_do_kampane__' + df + '_' + dt + '__min' + minRev + '.xlsx';
               }
 
-              // Náhled (max 200)
-              const preview = outArr.slice(0,200).map(x => ({Dodavatel:x[0], Produkt:x[1], Obrat:x[2]}));
+              // Náhled
+              const preview = filteredAgg.slice(0,200).map(x => ({Dodavatel:x.supp, Produkt:x.prod, Obrat:x.sum}));
 
               self.postMessage({
                 type: wantPreview ? 'preview' : 'export',
                 preview,
-                summary: { totalIn, totalOut: outArr.length, totalAcceptedRows: totalOutRows, sheetName: targetSheet, mode },
+                summary: { totalIn, totalOut: filteredAgg.length, totalAcceptedRows, sheetName: targetSheet, mode },
                 xlsxBuffer,
                 fileName,
                 columns: { mode, idxProd, idxSupp, idxDate, idxRev, headers }
@@ -375,7 +523,6 @@
   <!-- ===== UI logika ===== -->
   <script>
     var fileEl      = document.getElementById('file');
-    var sheetSelEl  = document.getElementById('sheetSel');
     var dateFromEl  = document.getElementById('dateFrom');
     var dateToEl    = document.getElementById('dateTo');
     var minRevenueEl= document.getElementById('minRevenue');
@@ -402,7 +549,6 @@
         errorEl.textContent = 'Chyba: ' + msg.message;
         statusEl.textContent = 'Stav: chyba.';
       }else if (msg.type === 'introspected'){
-        renderSheets(msg.sheetNames);
         renderHeaders(msg.headers);
         statusEl.textContent = 'Stav: soubor načten — vyber filtr a export.';
       }else if (msg.type === 'preview'){
@@ -428,7 +574,7 @@
       var reader = new FileReader();
       reader.onload = function(e){
         lastArrayBuffer = e.target.result;
-        statusEl.textContent = 'Stav: detekce listů/hlaviček…';
+        statusEl.textContent = 'Stav: detekce hlaviček…';
         xlsxWorker.postMessage({ type:'introspect', arrayBuffer:lastArrayBuffer });
       };
       reader.onerror = function(){ errorEl.textContent = 'Chyba čtení souboru.'; statusEl.textContent = 'Stav: chyba.'; };
@@ -444,7 +590,6 @@
       var payload = {
         type:'filter_export',
         arrayBuffer:lastArrayBuffer,
-        sheetName: sheetSelEl.value || null,
         dateFrom:  dateFromEl.value || null,
         dateTo:    dateToEl.value   || null,
         minRevenue: parseFloat(minRevenueEl.value || '0') || 0,
@@ -464,7 +609,6 @@
       var payload = {
         type:'filter_export',
         arrayBuffer:lastArrayBuffer,
-        sheetName: sheetSelEl.value || null,
         dateFrom:  dateFromEl.value || null,
         dateTo:    dateToEl.value   || null,
         minRevenue: parseFloat(minRevenueEl.value || '0') || 0,
@@ -487,9 +631,6 @@
       }
     }
 
-    function renderSheets(names){
-      sheetSelEl.innerHTML = names.map(function(n){ return '<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>'; }).join('');
-    }
     function renderHeaders(headers){
       headersBox.innerHTML = (headers || []).map(function(h,i){
         var txt = (h==null || h==='') ? '(prázdné)' : escapeHtml(String(h));
@@ -510,7 +651,7 @@
       summaryBox.innerHTML = '' +
         '<div class="item">Řádků (vstup): <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalIn) + '</strong></div>' +
         '<div class="item">Akceptovaných denních záznamů: <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalAcceptedRows) + '</strong></div>' +
-        '<div class="item">Agregovaných produktů: <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalOut) + '</strong></div>' +
+        '<div class="item">Agregovaných produktů (po min. obratu): <strong>' + new Intl.NumberFormat('cs-CZ').format(s.totalOut) + '</strong></div>' +
         '<div class="item">List: <strong>' + escapeHtml(s.sheetName) + '</strong></div>' +
         '<div class="item">Detekovaný mód: <strong>' + (s.mode==='A'?'long (hlavičky)':'report (ř.5=datum, A/B řádky)') + '</strong></div>';
     }
@@ -523,7 +664,6 @@
     }
     function resetUI(){
       fileEl.value = '';
-      sheetSelEl.innerHTML = '';
       previewTBody.innerHTML = '';
       summaryBox.innerHTML = '';
       headersBox.innerHTML = '';
@@ -532,7 +672,13 @@
       statusEl.textContent = 'Stav: připraveno (čekám na soubor)…';
       progressBar.style.width = '0%';
       lastArrayBuffer = null;
+      dateFromEl.value = '';
+      dateToEl.value = '';
+      minRevenueEl.value = '';
+      supplierEl.value = '';
+      productEl.value = '';
     }
   </script>
 </body>
 </html>
+``
