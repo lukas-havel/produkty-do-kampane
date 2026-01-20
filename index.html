@@ -5,282 +5,159 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Produkty do kampaně — filtr & export XLSX</title>
   
-  <!-- Flatpickr CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
 
   <style>
-    /* ===== Design tokens & Theme ===== */
-    :root{
-      --primary: #6366f1; /* Indigo */
-      --primary-dark: #4f46e5;
-      --accent: #ec4899;  /* Pink */
-      --success: #10b981; /* Emerald */
-      --bg-glass: rgba(255, 255, 255, 0.85);
-      --border-glass: rgba(255, 255, 255, 0.5);
-      --text-main: #1e293b;
-      --text-muted: #64748b;
-      --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-      --radius: 16px;
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      color: var(--text-main);
-      height: 100vh;
-      background-color: #e0e7ff;
-      background-image: 
-        radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-        radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-      background-attachment: fixed;
-      overflow-y: auto; 
-    }
-
-    header {
-      padding: 30px 20px;
-      max-width: 1200px;
-      margin: 0 auto;
-      color: white;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-    h1 { margin: 0; font-size: 2rem; letter-spacing: -0.5px; }
-    .hint { margin-top: 8px; opacity: 0.95; font-size: 1.1rem; max-width: 800px; font-weight: 300; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 380px 1fr;
-      gap: 24px;
-      max-width: 1200px;
-      margin: 0 auto 40px;
-      padding: 0 20px;
-      align-items: start;
-    }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-
-    .card {
-      background: var(--bg-glass);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border-glass);
-      border-radius: var(--radius);
-      padding: 24px;
-      box-shadow: var(--shadow);
-    }
-    .card h2 { margin: 0 0 16px; font-size: 1.2rem; color: var(--primary-dark); }
-
-    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
-    
-    input[type="file"], input[type="text"], input[type="number"], select {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      background: #fff;
-      font-family: inherit;
-      box-sizing: border-box;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
-    input:disabled, select:disabled, input.flatpickr-input[disabled] { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
-
-    .controls-row { display: flex; gap: 12px; margin-top: 12px; }
-    .controls-row > * { flex: 1; }
-
-    .quick-dates { display: flex; gap: 8px; margin-bottom: 8px; }
-    .btn-tiny {
-      background: rgba(99, 102, 241, 0.1); color: var(--primary-dark);
-      border: none; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn-tiny:hover { background: rgba(99, 102, 241, 0.2); }
-    .btn-tiny:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .btn {
-      width: 100%; padding: 12px; border: none; border-radius: 10px;
-      font-weight: 600; cursor: pointer; color: white;
-      transition: transform 0.1s, opacity 0.2s;
-      font-size: 0.95rem;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn:hover { opacity: 0.9; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    
-    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
-    .btn-accent { background: linear-gradient(135deg, var(--accent), #db2777); }
-    .btn-danger { background: #ef4444; color: white; width: auto; padding: 12px 16px; }
-
-    .status-box { margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.5); border-radius: 8px; font-size: 0.9rem; border: 1px dashed #cbd5e1; }
-    .error { color: #dc2626; margin-top: 8px; font-weight: 600; }
-    .muted { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
-
-    .progress-wrap { position: relative; height: 16px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin: 8px 0 16px; }
-    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.3s ease, background 0.3s; }
-    .progress-bar.success { background: var(--success); }
-    .progress-txt { position: absolute; width: 100%; text-align: center; top: 0; line-height: 16px; font-size: 10px; font-weight: bold; color: rgba(0,0,0,0.6); }
-
-    .table-wrapper { overflow-x: auto; max-height: 500px; border-radius: 8px; border: 1px solid #e2e8f0; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    
-    thead th {
-      background: #f8fafc; color: var(--text-muted); font-weight: 700; text-transform: uppercase;
-      font-size: 0.75rem; padding: 12px 16px; text-align: left;
-      position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #e2e8f0;
-    }
-    
-    tbody td { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; background: #fff; }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: #f8fafc; }
-    th.num, td.num { text-align: right; font-feature-settings: "tnum"; }
-
-    .summary { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
-    .tag { background: rgba(99, 102, 241, 0.1); color: var(--primary-dark); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(99, 102, 241, 0.2); }
+    :root{ --primary:#6366f1; --primary-dark:#4f46e5; --accent:#ec4899; --success:#10b981; --bg-glass:rgba(255,255,255,0.85); --text-main:#1e293b; --text-muted:#64748b; }
+    body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; color:var(--text-main); height:100vh; background-color:#e0e7ff; background-image:radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%); background-attachment:fixed; overflow-y:auto; }
+    header { padding:30px 20px; max-width:1200px; margin:0 auto; color:white; text-shadow:0 2px 4px rgba(0,0,0,0.3); }
+    h1 { margin:0; font-size:2rem; letter-spacing:-0.5px; }
+    .hint { margin-top:8px; opacity:0.95; font-size:1.1rem; max-width:800px; font-weight:300; }
+    .grid { display:grid; grid-template-columns:380px 1fr; gap:24px; max-width:1200px; margin:0 auto 40px; padding:0 20px; align-items:start; }
+    @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+    .card { background:var(--bg-glass); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.5); border-radius:16px; padding:24px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); }
+    .card h2 { margin:0 0 16px; font-size:1.2rem; color:var(--primary-dark); }
+    label { display:block; font-weight:600; margin-bottom:6px; font-size:0.9rem; }
+    input[type=file], input[type=text], input[type=number], select { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-sizing:border-box; outline:none; transition:0.2s; }
+    input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(99,102,241,0.2); }
+    input:disabled { background:#f1f5f9; cursor:not-allowed; opacity:0.7; }
+    .controls-row { display:flex; gap:12px; margin-top:12px; } .controls-row > * { flex:1; }
+    .quick-dates { display:flex; gap:8px; margin-bottom:8px; }
+    .btn-tiny { background:rgba(99,102,241,0.1); color:var(--primary-dark); border:none; padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer; transition:0.2s; }
+    .btn-tiny:hover { background:rgba(99,102,241,0.2); }
+    .btn { width:100%; padding:12px; border:none; border-radius:10px; font-weight:600; cursor:pointer; color:white; transition:0.2s; font-size:0.95rem; }
+    .btn:hover { opacity:0.9; transform:scale(0.99); } .btn:disabled { opacity:0.5; transform:none; cursor:not-allowed; }
+    .btn-primary { background:linear-gradient(135deg, var(--primary), var(--primary-dark)); }
+    .btn-accent { background:linear-gradient(135deg, var(--accent), #db2777); }
+    .btn-danger { background:#ef4444; width:auto; padding:6px 12px; font-size:0.8rem; }
+    .status-box { margin-top:15px; padding:12px; background:rgba(255,255,255,0.5); border-radius:8px; font-size:0.9rem; border:1px dashed #cbd5e1; }
+    .progress-wrap { position:relative; height:16px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin:8px 0 16px; }
+    .progress-bar { height:100%; width:0%; background:linear-gradient(90deg, var(--primary), var(--accent)); transition:width 0.3s; }
+    .progress-bar.success { background:var(--success); }
+    .progress-txt { position:absolute; width:100%; text-align:center; top:0; line-height:16px; font-size:10px; font-weight:bold; color:rgba(0,0,0,0.6); }
+    .table-wrapper { overflow-x:auto; max-height:500px; border-radius:8px; border:1px solid #e2e8f0; }
+    table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+    thead th { background:#f8fafc; color:var(--text-muted); font-weight:700; padding:12px 16px; text-align:left; position:sticky; top:0; z-index:10; border-bottom:2px solid #e2e8f0; }
+    tbody td { padding:10px 16px; border-bottom:1px solid #f1f5f9; background:#fff; }
+    th.num, td.num { text-align:right; }
+    .summary { display:flex; gap:10px; flex-wrap:wrap; margin-top:15px; }
+    .tag { background:rgba(99,102,241,0.1); color:var(--primary-dark); padding:6px 12px; border-radius:20px; font-size:0.85rem; font-weight:600; border:1px solid rgba(99,102,241,0.2); }
   </style>
 </head>
 <body>
 
 <header>
   <h1>Produkty do kampaně</h1>
-  <p class="hint">
-    Komplexní nástroj pro načtení, filtraci a export produktových dat z Excelu.
-  </p>
+  <p class="hint">Optimalizovaný nástroj. Načítá pouze listy odpovídající zvolenému období.</p>
 </header>
 
 <div class="grid">
-  <!-- SIDEBAR: Ovládání -->
   <aside class="card">
     <h2>1. Nahrát soubor</h2>
-    
-    <div class="progress-wrap">
-      <div id="barUpload" class="progress-bar"></div>
-      <div id="txtUpload" class="progress-txt">0%</div>
-    </div>
-    
-    <label class="btn btn-primary" style="text-align:center; display:block; width:auto">
-      Vybrat Excel (.xls / .xlsx)
-      <input type="file" id="file" accept=".xlsx,.xls" style="display:none" onclick="resetUI(false)" onchange="handleFileSelect()" />
+    <div class="progress-wrap"><div id="barUpload" class="progress-bar"></div><div id="txtUpload" class="progress-txt">0%</div></div>
+    <label class="btn btn-primary" style="text-align:center; display:block; width:auto">Vybrat Excel (.xls / .xlsx / .xlsb)
+      <input type="file" id="file" accept=".xlsx,.xls,.xlsb" style="display:none" onclick="resetUI(false)" onchange="handleFileSelect()" />
     </label>
     <div id="fileInfo" class="muted" style="text-align:center; margin-bottom:10px; min-height:20px;"></div>
-
     <hr style="border:0; border-top:1px solid rgba(0,0,0,0.1); margin: 20px 0;">
-
-    <h2>2. Filtrovat data</h2>
     
+    <h2>2. Filtrovat data</h2>
     <div class="quick-dates">
-      <button class="btn-tiny" id="btnThisMonth" onclick="setQuickDate('thisMonth')" disabled>Tento měsíc</button>
-      <button class="btn-tiny" id="btnLastMonth" onclick="setQuickDate('lastMonth')" disabled>Minulý měsíc</button>
+      <button class="btn-tiny" onclick="setQuickDate('thisMonth')">Tento měsíc</button>
+      <button class="btn-tiny" onclick="setQuickDate('lastMonth')">Minulý měsíc</button>
     </div>
-
     <div class="controls-row">
-      <div>
-        <label for="dateFrom">Datum od</label>
-        <input type="text" id="dateFrom" placeholder="Vyberte datum..." disabled />
-      </div>
-      <div>
-        <label for="dateTo">Datum do</label>
-        <input type="text" id="dateTo" placeholder="Vyberte datum..." disabled />
-      </div>
+      <div><label>Datum od</label><input type="text" id="dateFrom" placeholder="Vyberte..." disabled /></div>
+      <div><label>Datum do</label><input type="text" id="dateTo" placeholder="Vyberte..." disabled /></div>
     </div>
-
-    <!-- POUZE TEXTOVÝ INPUT PRO DODAVATELE -->
     <div style="margin-top:12px">
-      <label for="supplierInput">Dodavatel (obsahuje text)</label>
+      <label>Dodavatel (obsahuje text)</label>
       <input type="text" id="supplierInput" placeholder="Např. Alza..." disabled>
     </div>
-
     <div style="margin-top:12px">
-      <label for="minRevenue">Minimální obrat (Kč)</label>
-      <input type="number" id="minRevenue" min="0" step="1000" placeholder="např. 10000" disabled />
+      <label>Minimální obrat (Kč)</label>
+      <input type="number" id="minRevenue" min="0" step="1000" placeholder="10000" disabled />
     </div>
-
     <hr style="border:0; border-top:1px solid rgba(0,0,0,0.1); margin: 20px 0;">
-
     <div class="controls-row">
       <button class="btn btn-primary" id="btnPreview" onclick="runFilter()" disabled>Zobrazit náhled</button>
       <button class="btn btn-accent" id="btnExport" onclick="runExport()" disabled>Stáhnout XLSX</button>
     </div>
-    <div style="margin-top:10px; text-align:right;">
-      <button class="btn btn-danger" style="font-size:0.8rem; padding:6px 12px;" onclick="resetUI(true)">Resetovat vše</button>
-    </div>
-
+    <div style="margin-top:10px; text-align:right;"><button class="btn btn-danger" onclick="resetUI(true)">Reset</button></div>
+    
     <div class="status-box">
       <div id="status">Čekám na akci...</div>
       <div class="progress-wrap" id="processWrap" style="opacity:0.5; margin-bottom:0">
-        <div id="barProcess" class="progress-bar"></div>
-        <div id="txtProcess" class="progress-txt">0%</div>
+        <div id="barProcess" class="progress-bar"></div><div id="txtProcess" class="progress-txt">0%</div>
       </div>
-      <div id="error" class="error"></div>
+      <div id="error" style="color:#dc2626; margin-top:8px; font-weight:600;"></div>
     </div>
   </aside>
 
-  <!-- MAIN: Výsledky -->
   <main class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-      <h2>Náhled výsledků</h2>
-      <div class="muted">TOP 50 položek</div>
+      <h2>Výsledky</h2><div class="muted">TOP 50</div>
     </div>
-
     <div class="table-wrapper">
       <table id="previewTable">
-        <thead>
-          <tr>
-            <th>Dodavatel</th>
-            <th>Produkt</th>
-            <th class="num">Obrat (Kč)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="3" style="text-align:center; padding:30px; color:#94a3b8">Zatím žádná data</td></tr>
-        </tbody>
+        <thead><tr><th>Dodavatel</th><th>Produkt</th><th class="num">Obrat (Kč)</th></tr></thead>
+        <tbody><tr><td colspan="3" style="text-align:center; padding:30px; color:#94a3b8">Zatím žádná data</td></tr></tbody>
       </table>
     </div>
-
     <div id="summary" class="summary"></div>
   </main>
 </div>
 
-<!-- Flatpickr JS + Czech Locale -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://npmcdn.com/flatpickr/dist/l10n/cs.js"></script>
 
-<!-- ===== WORKER SCRIPT ===== -->
 <script>
 const workerCode = `
   function norm(s){ return String(s||'').toLowerCase().trim(); }
   function parseNum(val){
-    if (typeof val === 'number') return val;
-    if (val == null) return 0;
-    let s = String(val).replace(/\\s/g, '').replace(/\\u00a0/g, '').replace(/kč/i,'');
-    s = s.replace(',', '.'); s = s.replace(/[^0-9.-]/g, '');
-    const n = parseFloat(s); return isNaN(n) ? 0 : n;
+    if(typeof val==='number') return val; if(val==null) return 0;
+    let s=String(val).replace(/\\s/g,'').replace(/\\u00a0/g,'').replace(/kč/i,'').replace(',','.'); 
+    s=s.replace(/[^0-9.-]/g,''); const n=parseFloat(s); return isNaN(n)?0:n;
   }
   function parseHeaderDate(v){
-    if (v instanceof Date) return v;
-    if (typeof v === 'number'){
-       const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-       return isNaN(d.getTime()) ? null : d;
-    }
-    if (typeof v === 'string'){
-       const parts = v.split('.');
-       if(parts.length === 3){
-         const d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
-         if(!isNaN(d.getTime())) return d;
-       }
-       const d2 = new Date(v); if(!isNaN(d2.getTime())) return d2;
+    if(v instanceof Date) return v;
+    if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*86400*1000)); return isNaN(d.getTime())?null:d; }
+    if(typeof v==='string'){
+       const parts=v.split('.'); 
+       if(parts.length===3){ const d=new Date(parts[2],parts[1]-1,parts[0]); if(!isNaN(d.getTime())) return d; }
+       const d2=new Date(v); if(!isNaN(d2.getTime())) return d2;
     }
     return null;
   }
+  // Detekce měsíce a roku z názvu listu
+  function getSheetDateRange(name, filterYear){
+    const n = norm(name);
+    const czMonths = ['leden','unor','brezen','duben','kveten','cerven','cervenec','srpen','zari','rijen','listopad','prosinec'];
+    const simpleMonths = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
+    
+    let monthIdx = -1;
+    for(let i=0; i<12; i++){
+      if(n.includes(czMonths[i]) || n.includes(simpleMonths[i])) { monthIdx = i; break; }
+    }
+    if(monthIdx === -1) return null; // Není to měsíční list
 
-  function loadXLSX(cb){
-    try{ importScripts('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'); cb(); }
-    catch(e){ cb(e); }
+    // Zkusíme najít rok v názvu listu (4 číslice)
+    let year = filterYear || new Date().getFullYear();
+    const yearMatch = name.match(/20\\d{2}/);
+    if(yearMatch){
+      year = parseInt(yearMatch[0], 10);
+    }
+
+    const start = new Date(year, monthIdx, 1);
+    const end = new Date(year, monthIdx + 1, 0, 23, 59, 59); // Poslední den v měsíci
+    return { start, end, name };
   }
+
+  function loadXLSX(cb){ try{ importScripts('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'); cb(); }catch(e){ cb(e); } }
 
   self.onmessage = function(ev){
     const msg = ev.data || {};
-    
-    // --- PROCES FILTRACE (Žádný scan dodavatelů) ---
     if(msg.type === 'process'){
       const { arrayBuffer, supplierFilter, minRevenue, wantPreview } = msg;
       const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
@@ -288,21 +165,51 @@ const workerCode = `
       const dateTo = msg.dateTo ? new Date(msg.dateTo) : null;
       if(dateTo) dateTo.setHours(23,59,59,999);
 
+      // Rok pro fallback (pokud list nemá rok v názvu)
+      const fallbackYear = dateFrom ? dateFrom.getFullYear() : (dateTo ? dateTo.getFullYear() : new Date().getFullYear());
+
       loadXLSX(function(err){
-        if(err){ self.postMessage({type:'error', message:'Chyba'}); return; }
+        if(err){ self.postMessage({type:'error', message:'Chyba knihovny'}); return; }
         try {
-          const wb = XLSX.read(arrayBuffer, { type:'array', cellDates:true, cellStyles:false });
-          const sheetsToParse = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
+          // 1. Rychlý sken názvů listů
+          self.postMessage({type:'status', info:'Vybírám relevantní listy...'});
+          const wbMeta = XLSX.read(arrayBuffer, { type:'array', bookSheets:true });
+          const sheetsToProcess = [];
+
+          for(const shName of wbMeta.SheetNames){
+            if(shName.toLowerCase() === 'data') continue;
+            
+            // Filtrace listů podle data
+            if(dateFrom || dateTo){
+              const range = getSheetDateRange(shName, fallbackYear);
+              if(!range) continue; // Neznámý formát listu -> raději přeskočit? Nebo vzít? Zde přeskakujeme.
+              
+              // PRŮNIK INTERVALŮ:
+              // Pokud konec listu je před začátkem filtru -> přeskočit
+              if(dateFrom && range.end < dateFrom) continue;
+              // Pokud začátek listu je po konci filtru -> přeskočit
+              if(dateTo && range.start > dateTo) continue;
+            }
+            sheetsToProcess.push(shName);
+          }
+
+          if(sheetsToProcess.length === 0){
+            self.postMessage({type:'error', message:'Žádné listy neodpovídají zvolenému období.'});
+            return;
+          }
+
+          // 2. Načtení dat (jen vybrané listy)
+          self.postMessage({type:'status', info:'Načítám data ('+sheetsToProcess.length+' listů)...'});
+          const wb = XLSX.read(arrayBuffer, { type:'array', cellDates:true, cellStyles:false, sheets: sheetsToProcess });
           
           const agg = new Map();
           let totalIn = 0;
-          let processedSheets = 0;
+          let processedCount = 0;
           const filterSuppLower = supplierFilter ? supplierFilter.toLowerCase().trim() : null;
 
-          for(const shName of sheetsToParse){
-            processedSheets++;
-            const pct = Math.round((processedSheets / sheetsToParse.length) * 100);
-            self.postMessage({ type:'progress', value:pct, info:'Zpracovávám data: ' + shName });
+          for(const shName of sheetsToProcess){
+            processedCount++;
+            self.postMessage({ type:'progress', value: Math.round((processedCount/sheetsToProcess.length)*100), info:'Analyzuji: ' + shName });
 
             const ws = wb.Sheets[shName];
             const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
@@ -324,8 +231,7 @@ const workerCode = `
             let currSupp = null;
             for(let r=1; r<rows.length; r++){
               const row = rows[r]; if(!row) continue;
-              const valA = row[0];
-              const valB = row[1];
+              const valA = row[0]; const valB = row[1];
 
               if(valA && String(valA).trim()){
                 const s = String(valA).trim();
@@ -336,23 +242,19 @@ const workerCode = `
                 const prod = String(valB).trim();
                 if(prod.toUpperCase().startsWith('SL')) continue;
                 if(prod.toLowerCase()==='produkt') continue;
-
-                // Simple text filter
                 if(filterSuppLower && !currSupp.toLowerCase().includes(filterSuppLower)) continue;
 
                 let sum = 0;
                 const cols = (validCols.length > 0) ? validCols : Array.from({length: row.length-2}, (_,i)=>i+2);
                 for(let c of cols){
-                  const v = row[c];
-                  if(v) sum += parseNum(v);
+                  const v = row[c]; if(v) sum += parseNum(v);
                 }
 
                 if(sum !== 0){
                   totalIn++;
                   const key = currSupp + '|||' + prod;
                   const exist = agg.get(key);
-                  if(exist) exist.sum += sum;
-                  else agg.set(key, { s:currSupp, p:prod, sum:sum });
+                  if(exist) exist.sum += sum; else agg.set(key, { s:currSupp, p:prod, sum:sum });
                 }
               }
             }
@@ -379,7 +281,7 @@ const workerCode = `
           self.postMessage({
             type: wantPreview ? 'preview' : 'export',
             data: res.slice(0, 50),
-            stats: { totalIn, out: res.length, sheetCount: sheetsToParse.length },
+            stats: { totalIn, out: res.length, sheetCount: sheetsToProcess.length },
             file: { buff: xlsxBuff, name: fName }
           });
 
@@ -392,100 +294,61 @@ const workerCode = `
 const blob = new Blob([workerCode], {type:'application/javascript'});
 const worker = new Worker(URL.createObjectURL(blob));
 
-/* === UI === */
 const el = id => document.getElementById(id);
 let lastBuffer = null;
-let fpFrom = null; 
-let fpTo = null;
+let fpFrom, fpTo;
 
 window.onload = function() {
-  const fpConfig = {
-    locale: "cs",
-    dateFormat: "Y-m-d",
-    altInput: true,
-    altFormat: "j. F Y",
-    allowInput: true
-  };
-  fpFrom = flatpickr("#dateFrom", fpConfig);
-  fpTo = flatpickr("#dateTo", fpConfig);
+  const cfg = { locale: "cs", dateFormat: "Y-m-d", altInput: true, altFormat: "j. F Y", allowInput: true };
+  fpFrom = flatpickr("#dateFrom", cfg);
+  fpTo = flatpickr("#dateTo", cfg);
 };
 
 function setQuickDate(type) {
-  const today = new Date();
+  const now = new Date();
   let d1, d2;
-  if (type === 'thisMonth') {
-    d1 = new Date(today.getFullYear(), today.getMonth(), 1);
-    d2 = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  } else if (type === 'lastMonth') {
-    d1 = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    d2 = new Date(today.getFullYear(), today.getMonth(), 0);
-  }
-  if (fpFrom && fpTo) { fpFrom.setDate(d1); fpTo.setDate(d2); }
+  if(type === 'thisMonth'){ d1 = new Date(now.getFullYear(), now.getMonth(), 1); d2 = new Date(now.getFullYear(), now.getMonth()+1, 0); }
+  else { d1 = new Date(now.getFullYear(), now.getMonth()-1, 1); d2 = new Date(now.getFullYear(), now.getMonth(), 0); }
+  fpFrom.setDate(d1); fpTo.setDate(d2);
 }
 
 worker.onmessage = e => {
   const m = e.data;
-  if(m.type === 'error'){
-    el('error').textContent = 'Chyba: ' + m.message;
-    el('status').textContent = 'Chyba procesu.';
-    setProcess(0, 'error');
-  }
-  else if(m.type === 'progress'){
-    setProcess(m.value);
-    el('status').textContent = m.info;
-  }
+  if(m.type === 'error'){ el('error').textContent = m.message; el('status').textContent = 'Chyba.'; setProcess(0,'error'); }
+  else if(m.type === 'status'){ el('status').textContent = m.info; }
+  else if(m.type === 'progress'){ setProcess(m.value); el('status').textContent = m.info; }
   else if(m.type === 'preview' || m.type === 'export'){
-    setProcess(100, 'success');
-    el('status').textContent = 'Hotovo.';
+    setProcess(100,'success'); el('status').textContent = 'Hotovo.';
     renderTable(m.data);
-    el('summary').innerHTML = 
-      '<div class="tag">Listů: '+m.stats.sheetCount+'</div>' +
-      '<div class="tag">Položek: '+fmt(m.stats.totalIn)+'</div>' +
-      '<div class="tag">Výsledek: '+fmt(m.stats.out)+'</div>';
-    
+    el('summary').innerHTML = '<div class="tag">Vybráno listů: '+m.stats.sheetCount+'</div><div class="tag">Položek: '+fmt(m.stats.totalIn)+'</div><div class="tag">Výsledek: '+fmt(m.stats.out)+'</div>';
     if(m.type === 'export') download(m.file.buff, m.file.name);
   }
 };
 
 function handleFileSelect(){
-  const f = el('file').files[0];
-  if(!f) return;
-  
+  const f = el('file').files[0]; if(!f) return;
   resetUI(false); 
   el('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
-  el('status').textContent = 'Nahrávám soubor...';
-
+  el('status').textContent = 'Nahrávám...';
   const reader = new FileReader();
-  reader.onprogress = e => {
-    if(e.lengthComputable) setUpload((e.loaded/e.total)*90);
-  };
+  reader.onprogress = e => { if(e.lengthComputable) setUpload((e.loaded/e.total)*100); };
   reader.onload = e => {
     lastBuffer = e.target.result;
-    setUpload(100);
-    el('status').textContent = 'Soubor nahrán. Můžete pracovat.';
-    
-    // IHNED ODEMKNOUT VŠE
+    setUpload(100); el('status').textContent = 'Připraveno.';
     document.querySelectorAll('input, button').forEach(i => i.disabled = false);
   };
   reader.readAsArrayBuffer(f);
 }
 
-function runFilter(){ startProcess(true); }
-function runExport(){ startProcess(false); }
-
-function startProcess(preview){
+function runFilter(){ start(true); }
+function runExport(){ start(false); }
+function start(preview){
   if(!lastBuffer) return;
   el('error').textContent = '';
-  el('status').textContent = 'Zpracovávám data...';
-  el('processWrap').style.opacity = '1';
-  el('barProcess').classList.remove('success');
-  
+  setProcess(1); el('status').textContent = 'Start...';
   worker.postMessage({
-    type: 'process',
-    arrayBuffer: lastBuffer,
-    wantPreview: preview,
-    dateFrom: el('dateFrom').value,
-    dateTo: el('dateTo').value,
+    type: 'process', arrayBuffer: lastBuffer, wantPreview: preview,
+    dateFrom: el('dateFrom').value, dateTo: el('dateTo').value,
     minRevenue: parseFloat(el('minRevenue').value || 0),
     supplierFilter: el('supplierInput').value
   });
@@ -493,11 +356,9 @@ function startProcess(preview){
 
 function renderTable(data){
   const tbody = el('previewTable').getElementsByTagName('tbody')[0];
-  if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Žádná data neodpovídají filtru.</td></tr>'; return; }
+  if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Žádná data</td></tr>'; return; }
   let html = '';
-  data.forEach(r => {
-    html += '<tr><td>'+esc(r.s)+'</td><td>'+esc(r.p)+'</td><td class="num">'+fmtMoney(r.sum)+'</td></tr>';
-  });
+  data.forEach(r => { html += '<tr><td>'+esc(r.s)+'</td><td>'+esc(r.p)+'</td><td class="num">'+fmtMoney(r.sum)+'</td></tr>'; });
   tbody.innerHTML = html;
 }
 
@@ -507,33 +368,11 @@ function download(buff, name){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
-function setUpload(p){
-  el('barUpload').style.width = p + '%';
-  el('txtUpload').textContent = Math.round(p) + '%';
-}
-function setProcess(p, state){
-  const bar = el('barProcess');
-  bar.style.width = p + '%';
-  el('txtProcess').textContent = Math.round(p) + '%';
-  if(state === 'success') bar.classList.add('success');
-  else bar.classList.remove('success');
-}
+function setUpload(p){ el('barUpload').style.width=p+'%'; el('txtUpload').textContent=Math.round(p)+'%'; }
+function setProcess(p,s){ const b=el('barProcess'); b.style.width=p+'%'; el('txtProcess').textContent=Math.round(p)+'%'; if(s==='success') b.classList.add('success'); else b.classList.remove('success'); }
 function resetUI(full){
-  if(full){
-    el('file').value = ''; lastBuffer = null;
-    setUpload(0); el('fileInfo').textContent = '';
-    el('supplierInput').value = '';
-    document.querySelectorAll('input:not(#file), button:not(#btnFile)').forEach(i => i.disabled = true);
-    document.querySelector('.btn-danger').disabled = false;
-    if(fpFrom) fpFrom.clear();
-    if(fpTo) fpTo.clear();
-  }
-  el('previewTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Zatím žádná data</td></tr>';
-  el('summary').innerHTML = '';
-  el('error').textContent = '';
-  el('status').textContent = 'Stav: připraveno';
-  el('processWrap').style.opacity = '0.5';
-  el('barProcess').style.width = '0%';
+  if(full){ el('file').value=''; lastBuffer=null; setUpload(0); el('fileInfo').textContent=''; document.querySelectorAll('input:not(#file), button:not(#btnFile)').forEach(i=>i.disabled=true); document.querySelector('.btn-danger').disabled=false; if(fpFrom)fpFrom.clear(); if(fpTo)fpTo.clear(); }
+  el('previewTable').getElementsByTagName('tbody')[0].innerHTML='<tr><td colspan="3" style="text-align:center;padding:30px">Zatím žádná data</td></tr>'; el('summary').innerHTML=''; el('error').textContent=''; el('status').textContent='Stav: připraveno'; el('processWrap').style.opacity='0.5'; el('barProcess').style.width='0%';
 }
 function fmt(n){ return new Intl.NumberFormat('cs-CZ').format(n); }
 function fmtMoney(n){ return new Intl.NumberFormat('cs-CZ', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n); }
