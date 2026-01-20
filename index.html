@@ -69,7 +69,12 @@
 
     /* ===== Forms ===== */
     label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
-    input[type="file"], input[type="date"], input[type="number"], select {
+    
+    input[type="file"], 
+    input[type="date"], 
+    input[type="number"], 
+    input[type="text"], 
+    select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid #cbd5e1;
@@ -82,6 +87,9 @@
     }
     input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
     
+    /* Disabled inputs styling */
+    input:disabled, select:disabled { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
+
     .controls-row { display: flex; gap: 12px; margin-top: 12px; }
     .controls-row > * { flex: 1; }
 
@@ -94,6 +102,7 @@
     }
     .btn:active { transform: scale(0.98); }
     .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     
     .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
     .btn-accent { background: linear-gradient(135deg, var(--accent), #db2777); }
@@ -167,31 +176,31 @@
     <div class="controls-row">
       <div>
         <label for="dateFrom">Datum od</label>
-        <input type="date" id="dateFrom" />
+        <input type="date" id="dateFrom" disabled />
       </div>
       <div>
         <label for="dateTo">Datum do</label>
-        <input type="date" id="dateTo" />
+        <input type="date" id="dateTo" disabled />
       </div>
     </div>
 
+    <!-- Datalist pro dodavatele -->
     <div style="margin-top:12px">
-      <label for="supplierSelect">Dodavatel</label>
-      <select id="supplierSelect" disabled>
-        <option value="">(Nejprve nahrajte soubor)</option>
-      </select>
+      <label for="supplierInput">Dodavatel (našeptávač)</label>
+      <input list="suppliersList" id="supplierInput" placeholder="(Nejprve nahrajte soubor)" disabled autocomplete="off">
+      <datalist id="suppliersList"></datalist>
     </div>
 
     <div style="margin-top:12px">
       <label for="minRevenue">Minimální obrat (Kč)</label>
-      <input type="number" id="minRevenue" min="0" step="1000" placeholder="např. 10000" />
+      <input type="number" id="minRevenue" min="0" step="1000" placeholder="např. 10000" disabled />
     </div>
 
     <hr style="border:0; border-top:1px solid rgba(0,0,0,0.1); margin: 20px 0;">
 
     <div class="controls-row">
-      <button class="btn btn-primary" onclick="runFilter()">Zobrazit náhled</button>
-      <button class="btn btn-accent" onclick="runExport()">Stáhnout XLSX</button>
+      <button class="btn btn-primary" id="btnPreview" onclick="runFilter()" disabled>Zobrazit náhled</button>
+      <button class="btn btn-accent" id="btnExport" onclick="runExport()" disabled>Stáhnout XLSX</button>
     </div>
     <div style="margin-top:10px; text-align:right;">
       <button class="btn btn-danger" style="font-size:0.8rem; padding:6px 12px;" onclick="resetUI(true)">Resetovat vše</button>
@@ -269,25 +278,18 @@ const workerCode = `
   self.onmessage = function(ev){
     const msg = ev.data || {};
     
-    // --- SKENOVÁNÍ DODAVATELŮ (OPTIMALIZOVANÉ) ---
+    // --- SKENOVÁNÍ DODAVATELŮ (Pozadí) ---
     if(msg.type === 'scan_suppliers'){
       const ab = msg.arrayBuffer;
       loadXLSX(function(err){
-        if(err){ self.postMessage({type:'error', message:'Chyba načítání knihovny'}); return; }
+        if(err){ return; } // Tichá chyba, neblokuje UI
         try {
-          // SUPER-OPTIMALIZACE: Vypnout styly, datumy, formáty pro rychlý sken
           const wb = XLSX.read(ab, { type:'array', cellStyles:false, cellHTML:false, cellNF:false, cellDates:false });
           const suppliers = new Set();
           const listNames = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
           
-          let i = 0;
           for(const shName of listNames){
-            i++;
-            // Report progress během skenu
-            self.postMessage({type:'scan_progress', info: 'Skenuji dodavatele ('+i+'/'+listNames.length+'): '+shName});
-            
             const ws = wb.Sheets[shName];
-            // Načteme jen data, rychle
             const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
             for(const r of rows){
               if(r && r[0]){
@@ -298,15 +300,13 @@ const workerCode = `
               }
             }
           }
-          
           const sorted = Array.from(suppliers).sort();
           self.postMessage({ type:'suppliers_found', list: sorted });
-          
-        } catch(e){ self.postMessage({type:'error', message:e.message}); }
+        } catch(e){ }
       });
     }
 
-    // --- PROCES FILTRACE ---
+    // --- PROCES FILTRACE (Main) ---
     if(msg.type === 'process'){
       const { arrayBuffer, supplierFilter, minRevenue, wantPreview } = msg;
       const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
@@ -323,6 +323,7 @@ const workerCode = `
           const agg = new Map();
           let totalIn = 0;
           let processedSheets = 0;
+          const filterSuppLower = supplierFilter ? supplierFilter.toLowerCase().trim() : null;
 
           for(const shName of sheetsToParse){
             processedSheets++;
@@ -359,11 +360,10 @@ const workerCode = `
 
               if(valB && currSupp){
                 const prod = String(valB).trim();
-                // IGNOROVAT SL
                 if(prod.toUpperCase().startsWith('SL')) continue;
                 if(prod.toLowerCase()==='produkt') continue;
 
-                if(supplierFilter && currSupp !== supplierFilter) continue;
+                if(filterSuppLower && !currSupp.toLowerCase().includes(filterSuppLower)) continue;
 
                 let sum = 0;
                 const cols = (validCols.length > 0) ? validCols : Array.from({length: row.length-2}, (_,i)=>i+2);
@@ -428,21 +428,19 @@ worker.onmessage = e => {
     el('status').textContent = 'Chyba procesu.';
     setProcess(0, 'error');
   }
-  else if(m.type === 'scan_progress'){
-    // Zobrazuje se v statusu, aby uživatel viděl pohyb
-    el('status').textContent = m.info;
-  }
   else if(m.type === 'suppliers_found'){
-    const sel = el('supplierSelect');
-    sel.innerHTML = '<option value="">-- Všichni dodavatelé --</option>';
+    // Seznam dorazil - naplníme datalist
+    const list = el('suppliersList');
+    list.innerHTML = ''; 
     m.list.forEach(s => {
       const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
-      sel.appendChild(opt);
+      opt.value = s;
+      list.appendChild(opt);
     });
-    sel.disabled = false;
-    el('status').textContent = 'Soubor připraven. Vyberte filtry.';
-    setUpload(100); 
+    // Změna placeholderu
+    const input = el('supplierInput');
+    input.placeholder = "Začněte psát nebo vyberte ze seznamu...";
+    // Poznámka: Input už je enabled, takže nic víc neměníme
   }
   else if(m.type === 'progress'){
     setProcess(m.value);
@@ -475,8 +473,19 @@ function handleFileSelect(){
   };
   reader.onload = e => {
     lastBuffer = e.target.result;
-    setUpload(95);
-    el('status').textContent = 'Spouštím rychlý sken dodavatelů...';
+    setUpload(100);
+    el('status').textContent = 'Soubor nahrán. Můžete pracovat (dodavatelé se načítají).';
+    
+    // IHNED ODEMKNOUT UI (Nečekáme na dodavatele)
+    el('dateFrom').disabled = false;
+    el('dateTo').disabled = false;
+    el('minRevenue').disabled = false;
+    el('supplierInput').disabled = false;
+    el('supplierInput').placeholder = "Načítám seznam dodavatelů (můžete psát ručně)...";
+    el('btnPreview').disabled = false;
+    el('btnExport').disabled = false;
+
+    // Spustit scan na pozadí
     worker.postMessage({ type:'scan_suppliers', arrayBuffer: lastBuffer });
   };
   reader.readAsArrayBuffer(f);
@@ -486,7 +495,7 @@ function runFilter(){ startProcess(true); }
 function runExport(){ startProcess(false); }
 
 function startProcess(preview){
-  if(!lastBuffer) { el('error').textContent = 'Nejprve nahrajte soubor.'; return; }
+  if(!lastBuffer) return;
   el('error').textContent = '';
   el('status').textContent = 'Zpracovávám data...';
   el('processWrap').style.opacity = '1';
@@ -499,7 +508,7 @@ function startProcess(preview){
     dateFrom: el('dateFrom').value,
     dateTo: el('dateTo').value,
     minRevenue: parseFloat(el('minRevenue').value || 0),
-    supplierFilter: el('supplierSelect').value
+    supplierFilter: el('supplierInput').value
   });
 }
 
@@ -534,8 +543,17 @@ function resetUI(full){
   if(full){
     el('file').value = ''; lastBuffer = null;
     setUpload(0); el('fileInfo').textContent = '';
-    el('supplierSelect').innerHTML = '<option value="">(Nejprve nahrajte soubor)</option>';
-    el('supplierSelect').disabled = true;
+    el('supplierInput').value = '';
+    el('supplierInput').placeholder = "(Nejprve nahrajte soubor)";
+    el('suppliersList').innerHTML = '';
+    
+    // Zablokovat zpět při plném resetu
+    el('dateFrom').disabled = true;
+    el('dateTo').disabled = true;
+    el('minRevenue').disabled = true;
+    el('supplierInput').disabled = true;
+    el('btnPreview').disabled = true;
+    el('btnExport').disabled = true;
   }
   el('previewTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Zatím žádná data</td></tr>';
   el('summary').innerHTML = '';
