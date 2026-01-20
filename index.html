@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Produkty do kampaně — filtr & export XLSX</title>
+  
+  <!-- Flatpickr CSS (Moderní kalendář) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
+
   <style>
     /* ===== Design tokens & Theme ===== */
     :root{
@@ -71,9 +76,8 @@
     label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
     
     input[type="file"], 
-    input[type="date"], 
+    input[type="text"], /* Flatpickr mění type="date" na text */
     input[type="number"], 
-    input[type="text"], 
     select {
       width: 100%;
       padding: 10px 12px;
@@ -87,11 +91,20 @@
     }
     input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
     
-    /* Disabled inputs styling */
-    input:disabled, select:disabled { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
+    input:disabled, select:disabled, input.flatpickr-input[disabled] { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
 
     .controls-row { display: flex; gap: 12px; margin-top: 12px; }
     .controls-row > * { flex: 1; }
+
+    /* Quick Date Buttons */
+    .quick-dates { display: flex; gap: 8px; margin-bottom: 8px; }
+    .btn-tiny {
+      background: rgba(99, 102, 241, 0.1); color: var(--primary-dark);
+      border: none; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-tiny:hover { background: rgba(99, 102, 241, 0.2); }
+    .btn-tiny:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* ===== Buttons ===== */
     .btn {
@@ -173,14 +186,20 @@
     <hr style="border:0; border-top:1px solid rgba(0,0,0,0.1); margin: 20px 0;">
 
     <h2>2. Filtrovat data</h2>
+    
+    <div class="quick-dates">
+      <button class="btn-tiny" id="btnThisMonth" onclick="setQuickDate('thisMonth')" disabled>Tento měsíc</button>
+      <button class="btn-tiny" id="btnLastMonth" onclick="setQuickDate('lastMonth')" disabled>Minulý měsíc</button>
+    </div>
+
     <div class="controls-row">
       <div>
         <label for="dateFrom">Datum od</label>
-        <input type="date" id="dateFrom" disabled />
+        <input type="text" id="dateFrom" placeholder="Vyberte datum..." disabled />
       </div>
       <div>
         <label for="dateTo">Datum do</label>
-        <input type="date" id="dateTo" disabled />
+        <input type="text" id="dateTo" placeholder="Vyberte datum..." disabled />
       </div>
     </div>
 
@@ -242,8 +261,13 @@
   </main>
 </div>
 
+<!-- Flatpickr JS + Czech Locale -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/cs.js"></script>
+
 <!-- ===== WORKER SCRIPT ===== -->
 <script>
+/* Worker je stejný, mění se jen inicializace kalendáře v UI části */
 const workerCode = `
   function norm(s){ return String(s||'').toLowerCase().trim(); }
   function parseNum(val){
@@ -278,16 +302,14 @@ const workerCode = `
   self.onmessage = function(ev){
     const msg = ev.data || {};
     
-    // --- SKENOVÁNÍ DODAVATELŮ (Pozadí) ---
     if(msg.type === 'scan_suppliers'){
       const ab = msg.arrayBuffer;
       loadXLSX(function(err){
-        if(err){ return; } // Tichá chyba, neblokuje UI
+        if(err){ return; }
         try {
           const wb = XLSX.read(ab, { type:'array', cellStyles:false, cellHTML:false, cellNF:false, cellDates:false });
           const suppliers = new Set();
           const listNames = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
-          
           for(const shName of listNames){
             const ws = wb.Sheets[shName];
             const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
@@ -306,9 +328,9 @@ const workerCode = `
       });
     }
 
-    // --- PROCES FILTRACE (Main) ---
     if(msg.type === 'process'){
       const { arrayBuffer, supplierFilter, minRevenue, wantPreview } = msg;
+      // Date stringy z Flatpickr jsou YYYY-MM-DD
       const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
       if(dateFrom) dateFrom.setHours(0,0,0,0);
       const dateTo = msg.dateTo ? new Date(msg.dateTo) : null;
@@ -420,7 +442,43 @@ const worker = new Worker(URL.createObjectURL(blob));
 /* === UI === */
 const el = id => document.getElementById(id);
 let lastBuffer = null;
+let fpFrom = null; // Flatpickr instances
+let fpTo = null;
 
+// Inicializace Flatpickr po načtení stránky
+window.onload = function() {
+  const fpConfig = {
+    locale: "cs",
+    dateFormat: "Y-m-d", // Formát pro JS (skrytý)
+    altInput: true,      // Povolit alternativní zobrazení
+    altFormat: "j. F Y", // Formát pro uživatele (např. 20. leden 2025)
+    allowInput: true     // Povolit ruční psaní
+  };
+  
+  fpFrom = flatpickr("#dateFrom", fpConfig);
+  fpTo = flatpickr("#dateTo", fpConfig);
+};
+
+// Rychlé volby datumu
+function setQuickDate(type) {
+  const today = new Date();
+  let d1, d2;
+  
+  if (type === 'thisMonth') {
+    d1 = new Date(today.getFullYear(), today.getMonth(), 1);
+    d2 = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  } else if (type === 'lastMonth') {
+    d1 = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    d2 = new Date(today.getFullYear(), today.getMonth(), 0);
+  }
+  
+  if (fpFrom && fpTo) {
+    fpFrom.setDate(d1);
+    fpTo.setDate(d2);
+  }
+}
+
+// Worker Listeners
 worker.onmessage = e => {
   const m = e.data;
   if(m.type === 'error'){
@@ -428,19 +486,21 @@ worker.onmessage = e => {
     el('status').textContent = 'Chyba procesu.';
     setProcess(0, 'error');
   }
+  else if(m.type === 'scan_progress'){
+    el('status').textContent = m.info;
+  }
   else if(m.type === 'suppliers_found'){
-    // Seznam dorazil - naplníme datalist
     const list = el('suppliersList');
+    const input = el('supplierInput');
     list.innerHTML = ''; 
     m.list.forEach(s => {
       const opt = document.createElement('option');
       opt.value = s;
       list.appendChild(opt);
     });
-    // Změna placeholderu
-    const input = el('supplierInput');
     input.placeholder = "Začněte psát nebo vyberte ze seznamu...";
-    // Poznámka: Input už je enabled, takže nic víc neměníme
+    el('status').textContent = 'Soubor připraven. Vyberte filtry.';
+    setUpload(100); 
   }
   else if(m.type === 'progress'){
     setProcess(m.value);
@@ -476,16 +536,22 @@ function handleFileSelect(){
     setUpload(100);
     el('status').textContent = 'Soubor nahrán. Můžete pracovat (dodavatelé se načítají).';
     
-    // IHNED ODEMKNOUT UI (Nečekáme na dodavatele)
-    el('dateFrom').disabled = false;
-    el('dateTo').disabled = false;
-    el('minRevenue').disabled = false;
-    el('supplierInput').disabled = false;
+    // ODEMKNOUT UI
+    // Flatpickr inputy se odemykají tím, že odebereme disabled z původního elementu
+    // Ale Flatpickr má wrapper, takže je jistější použít jeho API nebo překreslit
+    // Jednodušší: inputy už nemají disabled v HTML, ale my je disableujeme v JS při resetu
+    // Zde je povolíme:
+    
+    fpFrom._input.disabled = false; // Povolí psaní
+    fpTo._input.disabled = false;
+    // Ale Flatpickr vytvořil altInput, který vidíme.
+    // Nejjednodušší: selectnout all inputs a remove disabled
+    document.querySelectorAll('input, button').forEach(i => i.disabled = false);
+    // Znovu disablovat co má být (třeba reset) - ne, reset má být enabled.
+    
+    // Placeholder
     el('supplierInput').placeholder = "Načítám seznam dodavatelů (můžete psát ručně)...";
-    el('btnPreview').disabled = false;
-    el('btnExport').disabled = false;
 
-    // Spustit scan na pozadí
     worker.postMessage({ type:'scan_suppliers', arrayBuffer: lastBuffer });
   };
   reader.readAsArrayBuffer(f);
@@ -500,6 +566,10 @@ function startProcess(preview){
   el('status').textContent = 'Zpracovávám data...';
   el('processWrap').style.opacity = '1';
   el('barProcess').classList.remove('success');
+  
+  // Získáme data z Flatpickr (vrací pole dat, bereme [0])
+  // Ale my čteme .value z inputu, kterou Flatpickr aktualizuje na YYYY-MM-DD.
+  // Takže el('dateFrom').value je správně.
   
   worker.postMessage({
     type: 'process',
@@ -547,13 +617,14 @@ function resetUI(full){
     el('supplierInput').placeholder = "(Nejprve nahrajte soubor)";
     el('suppliersList').innerHTML = '';
     
-    // Zablokovat zpět při plném resetu
-    el('dateFrom').disabled = true;
-    el('dateTo').disabled = true;
-    el('minRevenue').disabled = true;
-    el('supplierInput').disabled = true;
-    el('btnPreview').disabled = true;
-    el('btnExport').disabled = true;
+    // Zablokovat UI
+    document.querySelectorAll('input:not(#file), button:not(#btnFile)').forEach(i => i.disabled = true);
+    // Tlačítko reset povolit
+    document.querySelector('.btn-danger').disabled = false;
+    
+    // Vyčistit Flatpickr
+    if(fpFrom) fpFrom.clear();
+    if(fpTo) fpTo.clear();
   }
   el('previewTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Zatím žádná data</td></tr>';
   el('summary').innerHTML = '';
