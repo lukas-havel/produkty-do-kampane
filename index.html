@@ -5,661 +5,578 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Produkty do kampaně — filtr & export XLSX</title>
   <style>
-    /* ===== Design tokens ===== */
+    /* ===== Design tokens & Theme ===== */
     :root{
-      color-scheme: light dark;
-      /* Světlé schéma */
-      --bg1: #f6f9ff;
-      --bg2: #eef3ff;
-      --glass: rgba(255,255,255,0.65);
-      --glass-border: rgba(17,24,39,0.08);
-      --text: #0f172a;
-      --muted: #64748b;
-      --primary:#3b82f6; /* modrá */
-      --primary-600:#2563eb;
-      --primary-700:#1d4ed8;
-      --accent:#10b981;  /* zelená */
-      --accent-600:#059669;
-      --warn:#ef4444;
-      --tab-head:#f8fafc;
-      --row-hover:#f1f5f9;
-      --radius:16px;
-      --radius-sm:12px;
-      --shadow: 0 12px 40px rgba(2, 6, 23, .10);
-      --shadow-soft: 0 6px 20px rgba(2, 6, 23, .08);
-      --focus: 0 0 0 3px rgba(59,130,246,.35);
-      --grad-1:#e0f2fe; /* cyan‑100 */
-      --grad-2:#e9d5ff; /* purple‑100 */
-      --progress:#2563eb;
-      --card-stroke: rgba(30,41,59,.12);
+      --primary: #6366f1; /* Indigo */
+      --primary-dark: #4f46e5;
+      --accent: #ec4899;  /* Pink */
+      --success: #10b981; /* Emerald */
+      --bg-glass: rgba(255, 255, 255, 0.85);
+      --border-glass: rgba(255, 255, 255, 0.5);
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      --radius: 16px;
     }
-    @media (prefers-color-scheme: dark){
-      :root{
-        --bg1: #0b1220;
-        --bg2: #101626;
-        --glass: rgba(17,24,39,0.55);
-        --glass-border: rgba(148,163,184,0.18);
-        --text: #e5e7eb;
-        --muted: #94a3b8;
-        --tab-head:#0f172a;
-        --row-hover:#0b1220;
-        --shadow: 0 14px 44px rgba(0,0,0,.45);
-        --shadow-soft: 0 8px 26px rgba(0,0,0,.38);
-        --grad-1:#0ea5e9; /* cyan‑500 */
-        --grad-2:#8b5cf6; /* violet‑500 */
-        --card-stroke: rgba(148,163,184,.18);
-      }
+
+    /* ===== Base & Background ===== */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text-main);
+      height: 100vh;
+      /* Moderní barevné pozadí */
+      background-color: #e0e7ff;
+      background-image: 
+        radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+        radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+      background-attachment: fixed;
+      overflow-y: auto; /* Povolit scroll celé stránky */
     }
-    /* ===== Base ===== */
-    html,body{
-      height:100%;
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
-      color: var(--text);
-      line-height: 1.55;
-      background:
-        radial-gradient(1200px 1200px at 10% -10%, var(--grad-1) 0%, transparent 50%),
-        radial-gradient(1200px 1200px at 110% 10%, var(--grad-2) 0%, transparent 50%),
-        linear-gradient(160deg,var(--bg1),var(--bg2));
-    }
-    * { box-sizing: border-box; }
-    header{
-      padding: 28px 24px 10px;
-      max-width: 1240px;
+
+    header {
+      padding: 30px 20px;
+      max-width: 1200px;
       margin: 0 auto;
+      color: white;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
-    h1{
-      margin:0;
-      font-size: clamp(22px, 2.6vw, 32px);
-      letter-spacing: -0.02em;
+    h1 { margin: 0; font-size: 2rem; letter-spacing: -0.5px; }
+    .hint { margin-top: 8px; opacity: 0.9; font-size: 0.95rem; max-width: 600px; line-height: 1.5; }
+
+    /* ===== Layout ===== */
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      padding: 0 20px;
+      align-items: start;
     }
-    .hint{ color:var(--muted); font-size: 13px; margin: 8px 0 0; }
-    /* Layout */
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 18px;
-      padding: 0 24px 28px;
-      max-width: 1240px;
-      margin: 0 auto;
-    }
-    @media (min-width: 1180px){
-      .grid{ grid-template-columns: 430px 1fr; }
-    }
-    .grid > * { min-width: 0; }
-    /* Cards (glass) */
-    .card{
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+    /* ===== Glass Card ===== */
+    .card {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-glass);
       border-radius: var(--radius);
+      padding: 24px;
       box-shadow: var(--shadow);
-      padding: 16px;
-      backdrop-filter: blur(10px);
     }
-    .card h2{ margin:0 0 12px; font-size: clamp(18px, 2.1vw, 22px); }
-    /* Form */
-    label{ font-weight: 600; display:block; margin-bottom: 6px; }
-    input[type="file"],
-    input[type="date"],
-    input[type="number"],
-    input[type="text"],
-    select{
+    .card h2 { margin: 0 0 16px; font-size: 1.2rem; color: var(--primary-dark); }
+
+    /* ===== Forms ===== */
+    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
+    input[type="file"], input[type="date"], input[type="number"], select {
       width: 100%;
-      padding: 11px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--card-stroke);
-      background: rgba(255,255,255,.85);
-      color: var(--text);
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      font-family: inherit;
+      box-sizing: border-box;
       outline: none;
-      transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    @media (prefers-color-scheme: dark){
-      input[type="file"],
-      input[type="date"],
-      input[type="number"],
-      input[type="text"],
-      select{ background: rgba(15,23,42,.6); }
-    }
-    input:focus, select:focus{ box-shadow: var(--focus); border-color: var(--primary-600); }
-    .controls-row{ display:flex; gap:10px; flex-wrap: wrap; margin-top: 10px; }
-    .btn{
-      display:inline-flex; align-items:center; gap:8px;
-      padding: 10px 14px; border-radius: 12px;
-      border: 1px solid var(--card-stroke);
-      background: rgba(255,255,255,.9);
-      color: var(--text);
-      cursor: pointer;
-      transition: transform .08s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
-      font-weight: 600;
-    }
-    .btn:hover{ transform: translateY(-1px); box-shadow: var(--shadow-soft); }
-    .btn:active{ transform: translateY(0); }
-    .btn-primary{ background: linear-gradient(180deg, var(--primary), var(--primary-600)); color: #fff; border-color: transparent; }
-    .btn-primary:hover{ background: linear-gradient(180deg, var(--primary-600), var(--primary-700)); }
-    .btn-accent{ background: linear-gradient(180deg, var(--accent), var(--accent-600)); color:#fff; border-color: transparent; }
-    .btn-danger{ background: linear-gradient(180deg, #f87171, var(--warn)); color:#fff; border-color: transparent; }
-    .status{
-      font-size: 13px; padding:10px 12px;
-      border:1px dashed var(--card-stroke);
-      border-radius: 12px;
-      background: rgba(2,6,23,.04);
-      margin-top: 10px;
-    }
-    .error{ color: var(--warn); margin-top: 8px; }
-    .muted{ color: var(--muted); font-size: 13px; }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
     
-    /* Loading Bars */
-    .progress-container{
-      height: 14px; border-radius: 999px; overflow: hidden; background: rgba(2,6,23,.06); 
-      margin-top: 8px; margin-bottom: 8px; position: relative;
+    .controls-row { display: flex; gap: 12px; margin-top: 12px; }
+    .controls-row > * { flex: 1; }
+
+    /* ===== Buttons ===== */
+    .btn {
+      width: 100%; padding: 12px; border: none; border-radius: 10px;
+      font-weight: 600; cursor: pointer; color: white;
+      transition: transform 0.1s, opacity 0.2s;
+      font-size: 0.95rem;
     }
-    .progress-bar{
-      height:100%; width:0%; background: linear-gradient(90deg, var(--primary), var(--accent)); 
-      transition: width .2s ease;
-    }
-    .progress-bar.upload{ background: linear-gradient(90deg, #10b981, #34d399); }
-    .progress-text{
-      position: absolute; top:0; left:0; width:100%; height:100%;
-      display:flex; align-items:center; justify-content:center;
-      font-size: 10px; font-weight:700; color: rgba(0,0,0,0.6);
+    .btn:active { transform: scale(0.98); }
+    .btn:hover { opacity: 0.9; }
+    
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
+    .btn-accent { background: linear-gradient(135deg, var(--accent), #db2777); }
+    .btn-danger { background: #ef4444; color: white; width: auto; padding: 12px 16px; }
+
+    /* ===== Status & Progress ===== */
+    .status-box { margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.5); border-radius: 8px; font-size: 0.9rem; border: 1px dashed #cbd5e1; }
+    .error { color: #dc2626; margin-top: 8px; font-weight: 600; }
+    .muted { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
+
+    .progress-wrap { position: relative; height: 16px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin: 8px 0 16px; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.3s ease, background 0.3s; }
+    .progress-bar.success { background: var(--success); } /* Zelená po dokončení */
+    .progress-txt { position: absolute; width: 100%; text-align: center; top: 0; line-height: 16px; font-size: 10px; font-weight: bold; color: rgba(0,0,0,0.6); }
+
+    /* ===== Table ===== */
+    .table-wrapper { overflow-x: auto; max-height: 500px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    
+    /* Sticky Header */
+    thead th {
+      background: #f8fafc;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      padding: 12px 16px;
+      text-align: left;
+      position: sticky; 
+      top: 0; 
+      z-index: 10;
+      border-bottom: 2px solid #e2e8f0;
     }
     
-    /* Table */
-    table{ width:100%; border-collapse: collapse; margin-top: 12px; table-layout: auto; }
-    thead th{
-      background: var(--tab-head); padding: 10px 12px;
-      border-bottom: 1px solid var(--card-stroke); text-align: left; font-weight: 700;
-      position: sticky; top: 0; z-index: 1;
-    }
-    tbody td{ border-top: 1px solid var(--card-stroke); padding: 10px 12px; }
-    tbody tr{ transition: background-color .15s ease; }
-    tbody tr:hover{ background: var(--row-hover); }
-    td.num{ text-align: right; }
-    .kv{ display:flex; gap:8px; flex-wrap: wrap; margin-top: 10px; }
-    .kv .item{
-      background: rgba(255,255,255,.5);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      padding: 8px 10px; font-size: 13px;
-      backdrop-filter: blur(6px);
-    }
-    @media (prefers-color-scheme: dark){
-      .kv .item{ background: rgba(15,23,42,.45); }
-      .progress-text{ color: rgba(255,255,255,0.7); }
-    }
-    /* Micro-helpers */
-    .pill{
-      display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
-      background: rgba(59,130,246,.15); color: var(--primary-600);
-    }
+    tbody td { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f8fafc; }
+    
+    /* Zarovnání čísel */
+    th.num, td.num { text-align: right; font-feature-settings: "tnum"; }
+
+    /* Summary Stats */
+    .summary { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+    .tag { background: rgba(99, 102, 241, 0.1); color: var(--primary-dark); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(99, 102, 241, 0.2); }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Produkty do kampaně — filtr & export XLSX</h1>
-    <p class="hint">
-      Zpracovává listy (měsíce). Ignoruje list "Data".<br>
-      <strong>Logika:</strong> Filtruje sloupce dle data. Načítá jen relevantní měsíce. (A=Dodavatel, B=Produkt).
-    </p>
-  </header>
-  <div class="grid">
-    <!-- OVLÁDACÍ PANEL -->
-    <aside class="card">
-      <h2>Nahrát & filtrovat</h2>
-      <label for="file">Excel (.xls / .xlsx)</label>
-      
-      <!-- LOADING BAR 1: UPLOAD -->
-      <div class="progress-container">
-        <div id="barUpload" class="progress-bar upload"></div>
-        <div id="txtUpload" class="progress-text">0%</div>
-      </div>
 
-      <input type="file" id="file" accept=".xlsx,.xls" onclick="resetUI(false)" onchange="handleFileSelect()" />
-      
-      <div class="controls-row">
-        <div style="flex:1">
-          <label for="dateFrom">Datum od</label>
-          <input type="date" id="dateFrom" />
-        </div>
-        <div style="flex:1">
-          <label for="dateTo">Datum do</label>
-          <input type="date" id="dateTo" />
-        </div>
-      </div>
-      <div class="controls-row">
-        <div style="flex:1">
-          <label for="minRevenue">Minimální obrat (Kč)</label>
-          <input type="number" id="minRevenue" min="0" step="1" placeholder="např. 10000" />
-        </div>
-        <div style="flex:1">
-          <label for="supplierFilter">Dodavatel (volitelné)</label>
-          <input type="text" id="supplierFilter" placeholder="obsahuje…" />
-        </div>
-        <div style="flex:1">
-          <label for="productFilter">Produkt (volitelné)</label>
-          <input type="text" id="productFilter" placeholder="obsahuje…" />
-        </div>
-      </div>
-      
-      <!-- TLAČÍTKA -->
-      <div class="controls-row">
-        <button class="btn btn-primary" onclick="runFilter()">Filtrovat (Náhled)</button>
-        <button class="btn btn-accent" onclick="runExport()">Exportovat XLSX</button>
-        <button class="btn btn-danger" onclick="resetUI(true)">Reset</button>
-      </div>
+<header>
+  <h1>Produkty do kampaně</h1>
+  <p class="hint">
+    Inteligentní filtr a export. Ignoruje produkty začínající na "SL".<br>
+    Podporuje filtraci podle data (sloupců) a výběr dodavatele.
+  </p>
+</header>
 
-      <div id="status" class="status">Stav: připraveno (čekám na soubor)…</div>
-      
-      <!-- LOADING BAR 2: PROCESS -->
-      <div class="progress-container" id="processBox" style="opacity:0.6">
+<div class="grid">
+  <!-- SIDEBAR: Ovládání -->
+  <aside class="card">
+    <h2>1. Nahrát soubor</h2>
+    
+    <!-- Upload Bar -->
+    <div class="progress-wrap">
+      <div id="barUpload" class="progress-bar"></div>
+      <div id="txtUpload" class="progress-txt">0%</div>
+    </div>
+    
+    <label class="btn btn-primary" style="text-align:center; display:block; width:auto">
+      Vybrat Excel (.xls / .xlsx)
+      <input type="file" id="file" accept=".xlsx,.xls" style="display:none" onclick="resetUI(false)" onchange="handleFileSelect()" />
+    </label>
+    <div id="fileInfo" class="muted" style="text-align:center; margin-bottom:10px; min-height:20px;"></div>
+
+    <hr style="border:0; border-top:1px solid rgba(0,0,0,0.1); margin: 20px 0;">
+
+    <h2>2. Filtrovat data</h2>
+    <div class="controls-row">
+      <div>
+        <label for="dateFrom">Datum od</label>
+        <input type="date" id="dateFrom" />
+      </div>
+      <div>
+        <label for="dateTo">Datum do</label>
+        <input type="date" id="dateTo" />
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <label for="supplierSelect">Dodavatel</label>
+      <select id="supplierSelect" disabled>
+        <option value="">(Nejprve nahrajte soubor)</option>
+      </select>
+    </div>
+
+    <div style="margin-top:12px">
+      <label for="minRevenue">Minimální obrat (Kč)</label>
+      <input type="number" id="minRevenue" min="0" step="1000" placeholder="např. 10000" />
+    </div>
+
+    <hr style="border:0; border-top:1px solid rgba(0,0,0,0.1); margin: 20px 0;">
+
+    <div class="controls-row">
+      <button class="btn btn-primary" onclick="runFilter()">Zobrazit náhled</button>
+      <button class="btn btn-accent" onclick="runExport()">Stáhnout XLSX</button>
+    </div>
+    <div style="margin-top:10px; text-align:right;">
+      <button class="btn btn-danger" style="font-size:0.8rem; padding:6px 12px;" onclick="resetUI(true)">Resetovat vše</button>
+    </div>
+
+    <!-- Process Bar -->
+    <div class="status-box">
+      <div id="status">Čekám na akci...</div>
+      <div class="progress-wrap" id="processWrap" style="opacity:0.5; margin-bottom:0">
         <div id="barProcess" class="progress-bar"></div>
-        <div id="txtProcess" class="progress-text">0% (neaktivní)</div>
+        <div id="txtProcess" class="progress-txt">0%</div>
       </div>
-
       <div id="error" class="error"></div>
-      <div id="fileInfo" class="muted"></div>
-    </aside>
+    </div>
+  </aside>
 
-    <!-- VÝSTUP / NÁHLED -->
-    <main class="card">
-      <h2>Náhled (Top 50 dle filtrů)</h2>
-      <div class="muted">Data jsou agregována ze všech načtených listů.</div>
+  <!-- MAIN: Výsledky -->
+  <main class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+      <h2>Náhled výsledků</h2>
+      <div class="muted">Zobrazuje se TOP 50 položek</div>
+    </div>
+
+    <div class="table-wrapper">
       <table id="previewTable">
         <thead>
           <tr>
-            <th>Dodavatel</th><th>Produkt</th><th class="num">Obrat (Kč)</th>
+            <th>Dodavatel</th>
+            <th>Produkt</th>
+            <th class="num">Obrat (Kč)</th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody>
+          <tr><td colspan="3" style="text-align:center; padding:30px; color:#94a3b8">Zatím žádná data</td></tr>
+        </tbody>
       </table>
-      <h2 style="margin-top:14px">Souhrn zpracování</h2>
-      <div id="summary" class="kv"></div>
-    </main>
-  </div>
+    </div>
 
-  <!-- ===== Web Worker (Blob) ===== -->
-  <script>
-    const workerCode = `
-      /* ===== UTIL ===== */
-      function norm(s){ return String(s||'').toLowerCase().trim(); }
-      
-      function parseNum(val){
-        if (typeof val === 'number') return val;
-        if (val == null) return 0;
-        let s = String(val);
-        s = s.replace(/\\s/g, '').replace(/\\u00a0/g, '').replace(/kč/i,'');
-        s = s.replace(',', '.');
-        s = s.replace(/[^0-9.-]/g, '');
-        const n = parseFloat(s);
-        return isNaN(n) ? 0 : n;
-      }
-      
-      function parseHeaderDate(v){
-        if (v instanceof Date) return v;
-        if (typeof v === 'number'){
-           const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-           return isNaN(d.getTime()) ? null : d;
-        }
-        if (typeof v === 'string'){
-           const parts = v.split('.');
-           if(parts.length === 3){
-             const day = parseInt(parts[0], 10);
-             const month = parseInt(parts[1], 10) - 1; 
-             const year = parseInt(parts[2], 10);
-             const d = new Date(year, month, day);
-             if(!isNaN(d.getTime())) return d;
-           }
-           const d2 = new Date(v);
-           if(!isNaN(d2.getTime())) return d2;
-        }
-        return null;
-      }
+    <div id="summary" class="summary"></div>
+  </main>
+</div>
 
-      function getMonthFromSheetName(name, targetYear){
-        const n = norm(name);
-        const czMonths = ['leden','unor','brezen','duben','kveten','cerven','cervenec','srpen','zari','rijen','listopad','prosinec'];
-        const simpleMonths = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
-        let idx = -1;
-        for(let i=0; i<12; i++){
-          if(n.includes(czMonths[i]) || n.includes(simpleMonths[i])) { idx = i; break; }
-        }
-        if(idx === -1) return null;
-        // Použijeme rok z filtru.
-        const y = targetYear || new Date().getFullYear();
-        return new Date(y, idx, 1);
-      }
-
-      /* ===== SheetJS loader ===== */
-      function loadXLSX(cb){
-        function tryUrl(urls,i){
-          if (i>=urls.length){ cb(new Error('Knihovnu XLSX se nepodařilo načíst')); return; }
-          try{ importScripts(urls[i]); if (self.XLSX) cb(null); else tryUrl(urls,i+1); }
-          catch(e){ tryUrl(urls,i+1); }
-        }
-        tryUrl([
-          'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-          'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
-        ],0);
-      }
-
-      /* ===== Worker Logic ===== */
-      self.postMessage({type:'ready'});
-      self.onmessage = function(ev){
-        const msg = ev.data || {};
-        
-        if (msg.type === 'process'){
-          const ab = msg.arrayBuffer;
-          const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
-          if(dateFrom) dateFrom.setHours(0,0,0,0);
-          
-          const dateTo   = msg.dateTo   ? new Date(msg.dateTo)   : null;
-          if(dateTo) dateTo.setHours(23,59,59,999);
-          
-          const minRev   = typeof msg.minRevenue === 'number' ? msg.minRevenue : 0;
-          const fSupp    = (msg.supplierContains || '').trim().toLowerCase();
-          const fProd    = (msg.productContains  || '').trim().toLowerCase();
-          const wantPreview = !!msg.wantPreview;
-
-          const filterYear = dateFrom ? dateFrom.getFullYear() : (dateTo ? dateTo.getFullYear() : new Date().getFullYear());
-
-          loadXLSX(function(err){
-            if (err){ self.postMessage({type:'error',message:err.message}); return; }
-            try{
-              self.postMessage({type:'status', info:'Skenuji seznam listů...'});
-              // Použijeme bookSheets pro super-rychlý sken názvů
-              const wbMeta = XLSX.read(ab, { type:'array', bookSheets:true });
-              let allSheets = wbMeta.SheetNames;
-              
-              let sheetsToParse = [];
-              for(let name of allSheets){
-                 if(name.trim().toLowerCase() === 'data') continue;
-                 
-                 // === OPTIMALIZACE VÝBĚRU LISTŮ ===
-                 if (dateFrom || dateTo) {
-                   const sheetStart = getMonthFromSheetName(name, filterYear);
-                   
-                   if (sheetStart) {
-                     // Spočítáme konec měsíce daného listu
-                     const sheetEnd = new Date(sheetStart.getFullYear(), sheetStart.getMonth() + 1, 0, 23, 59, 59);
-                     
-                     // PRŮNIK INTERVALŮ:
-                     // List se zpracuje, jen když se časově překrývá s filtrem.
-                     // Pokud konec listu < začátek filtru -> přeskočit
-                     if (dateFrom && sheetEnd < dateFrom) continue;
-                     
-                     // Pokud začátek listu > konec filtru -> přeskočit
-                     if (dateTo && sheetStart > dateTo) continue;
-                   }
-                   // Pokud se datum listu nepodařilo zjistit (např. divný název), 
-                   // raději ho zahrneme, abychom o nic nepřišli, nebo přeskočíme?
-                   // Většinou chceme přeskočit "Data", "Ostatní".
-                   // Pokud getMonthFromSheetName vrátí null, asi to není měsíc -> skip?
-                   // Pro jistotu: pokud nemáme datum listu, ale uživatel filtruje datum, ignorujeme.
-                   if (!sheetStart) continue;
-                 }
-                 sheetsToParse.push(name);
-              }
-
-              if (sheetsToParse.length === 0){
-                self.postMessage({type:'error',message:'Žádné listy neodpovídají zvolenému období.'}); 
-                return; 
-              }
-
-              self.postMessage({type:'status', info:'Načítám detailně ' + sheetsToParse.length + ' listů...'});
-              
-              // Tady proběhne to skutečné načtení dat (trvá nejdéle)
-              // Díky option "sheets" načte jen ty vybrané!
-              const wb = XLSX.read(ab, { 
-                type:'array', 
-                cellStyles:false,
-                cellHTML:false, 
-                cellNF:false,
-                sheets: sheetsToParse, // Klíčové zrychlení
-                cellDates: true 
-              });
-
-              const agg = new Map(); 
-              let totalIn = 0;
-              let processedSheets = 0;
-
-              for (const sheetName of sheetsToParse) {
-                processedSheets++;
-                const pct = Math.round((processedSheets / sheetsToParse.length) * 100);
-                self.postMessage({type:'progress', value: pct, info: 'Analyzuji: ' + sheetName});
-
-                const ws = wb.Sheets[sheetName];
-                if (!ws) continue;
-                
-                const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
-                if (!rows || rows.length < 2) continue; 
-
-                // Hlavička a filtrování sloupců
-                const headerRow = rows[0];
-                const validColumnIndices = []; 
-                
-                for(let c=2; c<headerRow.length; c++){
-                   const val = headerRow[c];
-                   const d = parseHeaderDate(val);
-                   if (d) {
-                     let ok = true;
-                     if (dateFrom && d < dateFrom) ok = false;
-                     if (dateTo && d > dateTo) ok = false;
-                     if (ok) validColumnIndices.push(c);
-                   }
-                }
-                
-                if (validColumnIndices.length === 0) continue;
-
-                let currentSupplier = null;
-
-                for (let r=1; r<rows.length; r++){
-                  const row = rows[r]; if(!row) continue;
-                  
-                  const valA = row[0];
-                  const valB = row[1];
-                  
-                  const hasA = (valA != null && String(valA).trim() !== '');
-                  const hasB = (valB != null && String(valB).trim() !== '');
-                  
-                  if (hasA) {
-                    const str = String(valA).trim();
-                    if(str.toLowerCase() !== 'dodavatel' && str.toLowerCase() !== 'supplier') {
-                      currentSupplier = str;
-                    }
-                  }
-                  
-                  if (hasB && currentSupplier) {
-                     const prodName = String(valB).trim();
-                     if(prodName.toLowerCase() === 'produkt' || prodName.toLowerCase() === 'product') continue;
-
-                     let rowSum = 0;
-                     for(let idx of validColumnIndices){
-                       const cell = row[idx];
-                       if(cell != null) {
-                         const n = parseNum(cell);
-                         if(n !== 0) rowSum += n;
-                       }
-                     }
-                     
-                     totalIn++;
-                     if (fSupp && !currentSupplier.toLowerCase().includes(fSupp)) continue;
-                     if (fProd && !prodName.toLowerCase().includes(fProd)) continue;
-                     
-                     const key = currentSupplier + '\\u0001' + prodName;
-                     const curr = agg.get(key);
-                     if (curr){ curr.sum += rowSum; curr.rows++; }
-                     else { agg.set(key, {supp:currentSupplier, prod:prodName, sum:rowSum, rows:1}); }
-                  }
-                }
-              }
-
-              let result = Array.from(agg.values());
-              result = result.filter(x => x.sum >= minRev);
-              result.sort((a,b) => b.sum - a.sum);
-
-              let xlsxBuffer = null, fileName = null;
-              if (!wantPreview){
-                const outArr = result.map(x => [x.supp, x.prod, x.sum]);
-                const aoa = [['Dodavatel','Produkt','Obrat']].concat(outArr);
-                const wsOut = XLSX.utils.aoa_to_sheet(aoa);
-                for (let r=1; r<=outArr.length; r++){
-                   const addr = XLSX.utils.encode_cell({r, c:2});
-                   if(!wsOut[addr]) wsOut[addr]={t:'n',v:0};
-                   wsOut[addr].z = '#,##0.00';
-                }
-                const wbOut = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wbOut, wsOut, 'Export');
-                xlsxBuffer = XLSX.write(wbOut, { bookType:'xlsx', type:'array' });
-                fileName = 'Export_kampan.xlsx';
-              }
-
-              self.postMessage({
-                type: wantPreview ? 'preview' : 'export',
-                preview: result.slice(0, 50).map(x => ({Dodavatel:x.supp, Produkt:x.prod, Obrat:x.sum})),
-                summary: { totalIn, totalOut: result.length, sheetCount: sheetsToParse.length },
-                xlsxBuffer, fileName
-              });
-
-            } catch(e){ self.postMessage({type:'error',message:e.message}); }
-          });
-        }
-      };
-    `;
-
-    const workerBlob = new Blob([workerCode], { type:'application/javascript' });
-    const workerURL  = URL.createObjectURL(workerBlob);
-    const xlsxWorker = new Worker(workerURL);
-
-    /* ===== UI Logic ===== */
-    var fileEl = document.getElementById('file');
-    var statusEl = document.getElementById('status');
-    var errorEl = document.getElementById('error');
-    
-    var barUpload = document.getElementById('barUpload');
-    var txtUpload = document.getElementById('txtUpload');
-    
-    var processBox = document.getElementById('processBox');
-    var barProcess = document.getElementById('barProcess');
-    var txtProcess = document.getElementById('txtProcess');
-
-    var previewTBody = document.querySelector('#previewTable tbody');
-    var summaryBox = document.getElementById('summary');
-    var lastArrayBuffer = null;
-
-    xlsxWorker.onmessage = function(ev){
-      var msg = ev.data || {};
-      if (msg.type === 'ready'){
-        statusEl.textContent = 'Stav: připraveno (čekám na soubor)…';
-      } else if (msg.type === 'status'){
-         statusEl.textContent = 'Stav: ' + msg.info;
-      } else if (msg.type === 'progress'){
-        setProcessProg(msg.value);
-        statusEl.textContent = 'Stav: ' + msg.info;
-      } else if (msg.type === 'error'){
-        errorEl.textContent = 'Chyba: ' + msg.message;
-        statusEl.textContent = 'Stav: chyba.';
-        setProcessProg(0);
-      } else if (msg.type === 'preview' || msg.type === 'export'){
-        setProcessProg(100);
-        statusEl.textContent = 'Stav: hotovo.';
-        renderPreview(msg.preview);
-        renderSummary(msg.summary);
-        if(msg.type === 'export') triggerDownload(msg.xlsxBuffer, msg.fileName);
-      }
-    };
-
-    function handleFileSelect(){
-      var f = fileEl.files[0];
-      if (!f) return;
-      resetProcessUIOnly(); 
-      document.getElementById('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
-      statusEl.textContent = 'Nahrávám soubor...';
-      
-      var reader = new FileReader();
-      reader.onprogress = function(data) {
-        if (data.lengthComputable) {
-          var progress = parseInt( ((data.loaded / data.total) * 100), 10 );
-          setUploadProg(progress);
-        }
-      };
-      reader.onload = function(e){
-        lastArrayBuffer = e.target.result;
-        setUploadProg(100);
-        statusEl.textContent = 'Soubor připraven v paměti.';
-      };
-      reader.onerror = function(){ errorEl.textContent = 'Chyba čtení souboru.'; };
-      reader.readAsArrayBuffer(f);
+<!-- ===== WORKER SCRIPT ===== -->
+<script>
+const workerCode = `
+  /* === UTIL === */
+  function norm(s){ return String(s||'').toLowerCase().trim(); }
+  function parseNum(val){
+    if (typeof val === 'number') return val;
+    if (val == null) return 0;
+    let s = String(val).replace(/\\s/g, '').replace(/\\u00a0/g, '').replace(/kč/i,'');
+    s = s.replace(',', '.');
+    s = s.replace(/[^0-9.-]/g, '');
+    const n = parseFloat(s); return isNaN(n) ? 0 : n;
+  }
+  function parseHeaderDate(v){
+    if (v instanceof Date) return v;
+    if (typeof v === 'number'){
+       const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+       return isNaN(d.getTime()) ? null : d;
     }
+    if (typeof v === 'string'){
+       const parts = v.split('.');
+       if(parts.length === 3){
+         const day = parseInt(parts[0], 10);
+         const month = parseInt(parts[1], 10) - 1; 
+         const year = parseInt(parts[2], 10);
+         const d = new Date(year, month, day);
+         if(!isNaN(d.getTime())) return d;
+       }
+       const d2 = new Date(v); if(!isNaN(d2.getTime())) return d2;
+    }
+    return null;
+  }
+
+  function loadXLSX(cb){
+    try{ importScripts('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'); cb(); }
+    catch(e){ cb(e); }
+  }
+
+  self.onmessage = function(ev){
+    const msg = ev.data || {};
     
-    function runFilter(){ sendMsg(true); }
-    function runExport(){ sendMsg(false); }
-    
-    function sendMsg(preview){
-      if(!lastArrayBuffer) { statusEl.textContent='Nahrajte soubor!'; return; }
-      previewTBody.innerHTML = '';
-      errorEl.textContent = '';
-      setProcessProg(1); 
-      statusEl.textContent = 'Spouštím analýzu...';
-      
-      xlsxWorker.postMessage({
-        type:'process',
-        arrayBuffer:lastArrayBuffer,
-        dateFrom: document.getElementById('dateFrom').value,
-        dateTo: document.getElementById('dateTo').value,
-        minRevenue: parseFloat(document.getElementById('minRevenue').value || 0),
-        supplierContains: document.getElementById('supplierFilter').value,
-        productContains: document.getElementById('productFilter').value,
-        wantPreview: preview
+    // --- SKENOVÁNÍ DODAVATELŮ ---
+    if(msg.type === 'scan_suppliers'){
+      const ab = msg.arrayBuffer;
+      loadXLSX(function(err){
+        if(err){ self.postMessage({type:'error', message:'Chyba načítání knihovny'}); return; }
+        try {
+          const wb = XLSX.read(ab, { type:'array', sheetRows: 0 }); // Načteme vše, ale jen data
+          const suppliers = new Set();
+          
+          // Projdeme všechny listy (kromě Data) a vyzobeme sloupec A
+          wb.SheetNames.forEach(shName => {
+            if(shName.toLowerCase() === 'data') return;
+            const ws = wb.Sheets[shName];
+            // sheet_to_json s header:1 vrátí pole polí
+            const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
+            rows.forEach(r => {
+              if(r && r[0]){
+                const s = String(r[0]).trim();
+                if(s.length > 1 && s.toLowerCase() !== 'dodavatel' && s.toLowerCase() !== 'supplier'){
+                  suppliers.add(s);
+                }
+              }
+            });
+          });
+          
+          const sorted = Array.from(suppliers).sort();
+          self.postMessage({ type:'suppliers_found', list: sorted });
+          
+        } catch(e){ self.postMessage({type:'error', message:e.message}); }
       });
     }
 
-    function renderPreview(rows){
-      if(!rows.length) { previewTBody.innerHTML='<tr><td colspan="3" style="text-align:center;padding:20px">Žádná data (nebo filtr nic nenašel)</td></tr>'; return; }
-      previewTBody.innerHTML = rows.map(r => 
-        '<tr><td>'+esc(r.Dodavatel)+'</td><td>'+esc(r.Produkt)+'</td><td class="num">'+fmt(r.Obrat)+'</td></tr>'
-      ).join('');
+    // --- PROCES FILTRACE ---
+    if(msg.type === 'process'){
+      const { arrayBuffer, supplierFilter, minRevenue, wantPreview } = msg;
+      const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
+      if(dateFrom) dateFrom.setHours(0,0,0,0);
+      const dateTo = msg.dateTo ? new Date(msg.dateTo) : null;
+      if(dateTo) dateTo.setHours(23,59,59,999);
+
+      loadXLSX(function(err){
+        if(err){ self.postMessage({type:'error', message:'Chyba'}); return; }
+        try {
+          // 1. Zjistit listy
+          const wb = XLSX.read(arrayBuffer, { type:'array', cellDates:true });
+          const sheetsToParse = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
+          
+          const agg = new Map();
+          let totalIn = 0;
+          let processedSheets = 0;
+
+          // 2. Iterace listů
+          for(const shName of sheetsToParse){
+            processedSheets++;
+            const pct = Math.round((processedSheets / sheetsToParse.length) * 100);
+            self.postMessage({ type:'progress', value:pct, info:'Analyzuji: ' + shName });
+
+            const ws = wb.Sheets[shName];
+            const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
+            if(!rows || rows.length < 2) continue;
+
+            // Hlavička (řádek 0) - detekce sloupců s datem
+            const header = rows[0];
+            const validCols = [];
+            for(let c=2; c<header.length; c++){ // od C
+              const d = parseHeaderDate(header[c]);
+              if(d){
+                let ok = true;
+                if(dateFrom && d < dateFrom) ok = false;
+                if(dateTo && d > dateTo) ok = false;
+                if(ok) validCols.push(c);
+              }
+            }
+            if(validCols.length === 0 && (dateFrom || dateTo)) continue; // List nemá relevantní data
+
+            // Data (řádek 1+)
+            let currSupp = null;
+            for(let r=1; r<rows.length; r++){
+              const row = rows[r]; if(!row) continue;
+              const valA = row[0];
+              const valB = row[1];
+
+              // A = Dodavatel
+              if(valA && String(valA).trim()){
+                const s = String(valA).trim();
+                if(s.toLowerCase()!=='dodavatel') currSupp = s;
+              }
+
+              // B = Produkt
+              if(valB && currSupp){
+                const prod = String(valB).trim();
+                // IGNOROVAT "SL"
+                if(prod.toUpperCase().startsWith('SL')) continue;
+                if(prod.toLowerCase()==='produkt') continue;
+
+                // Filtr dodavatele (Dropdown)
+                if(supplierFilter && currSupp !== supplierFilter) continue;
+
+                // Součet
+                let sum = 0;
+                // Pokud nemáme filtr data, bereme všechny sloupce od 2
+                const cols = (validCols.length > 0) ? validCols : Array.from({length: row.length-2}, (_,i)=>i+2);
+                
+                for(let c of cols){
+                  const v = row[c];
+                  if(v) sum += parseNum(v);
+                }
+
+                if(sum !== 0){
+                  totalIn++;
+                  const key = currSupp + '|||' + prod;
+                  const exist = agg.get(key);
+                  if(exist) exist.sum += sum;
+                  else agg.set(key, { s:currSupp, p:prod, sum:sum });
+                }
+              }
+            }
+          }
+
+          // 3. Výsledky & Min. obrat
+          let res = Array.from(agg.values());
+          if(minRevenue > 0) res = res.filter(x => x.sum >= minRevenue);
+          res.sort((a,b) => b.sum - a.sum);
+
+          // Export
+          let xlsxBuff = null, fName = null;
+          if(!wantPreview){
+            const aoa = [['Dodavatel','Produkt','Obrat']].concat(res.map(x => [x.s, x.p, x.sum]));
+            const newWs = XLSX.utils.aoa_to_sheet(aoa);
+            // Format cisel
+            for(let r=1; r<aoa.length; r++){
+               const ref = XLSX.utils.encode_cell({r:r, c:2});
+               if(newWs[ref]) newWs[ref].z = '#,##0.00';
+            }
+            const newWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWb, newWs, 'Export');
+            xlsxBuff = XLSX.write(newWb, { bookType:'xlsx', type:'array' });
+            fName = 'Export_kampan.xlsx';
+          }
+
+          self.postMessage({
+            type: wantPreview ? 'preview' : 'export',
+            data: res.slice(0, 50),
+            stats: { totalIn, out: res.length, sheetCount: sheetsToParse.length },
+            file: { buff: xlsxBuff, name: fName }
+          });
+
+        } catch(e){ self.postMessage({type:'error', message:e.message}); }
+      });
     }
-    function renderSummary(s){
-      summaryBox.innerHTML = 
-        '<div class="item">Zpracované listy: <b>'+s.sheetCount+'</b></div>' +
-        '<div class="item">Nalezené produkty: <b>'+fmt(s.totalIn)+'</b></div>' +
-        '<div class="item">Výsledek (po filtru): <b>'+fmt(s.totalOut)+'</b></div>';
-    }
-    function triggerDownload(buf, name){
-      var b = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-      var u = URL.createObjectURL(b);
-      var a = document.createElement('a'); a.href=u; a.download=name; 
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }
-    function setUploadProg(p){
-      barUpload.style.width = p + '%';
-      txtUpload.textContent = p + '%';
-    }
-    function setProcessProg(p){
-      processBox.style.opacity = '1';
-      barProcess.style.width = p + '%';
-      txtProcess.textContent = p + '%';
-    }
-    function resetProcessUIOnly(){
-      processBox.style.opacity = '0.6';
-      barProcess.style.width = '0%';
-      txtProcess.textContent = '0% (neaktivní)';
-      previewTBody.innerHTML = '';
-      summaryBox.innerHTML = '';
-      errorEl.textContent = '';
-    }
-    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-    function fmt(n){ return new Intl.NumberFormat('cs-CZ').format(n); }
-    function resetUI(clearFile){ 
-      if(clearFile) { 
-        fileEl.value = ''; 
-        lastArrayBuffer = null; 
-        setUploadProg(0); 
-        document.getElementById('fileInfo').textContent = '';
-        statusEl.textContent = 'Stav: připraveno (čekám na soubor)…';
-      }
-      resetProcessUIOnly();
-    }
-  </script>
+  };
+`;
+
+const blob = new Blob([workerCode], {type:'application/javascript'});
+const worker = new Worker(URL.createObjectURL(blob));
+
+/* === UI === */
+const el = id => document.getElementById(id);
+let lastBuffer = null;
+
+// Worker Listeners
+worker.onmessage = e => {
+  const m = e.data;
+  if(m.type === 'error'){
+    el('error').textContent = 'Chyba: ' + m.message;
+    el('status').textContent = 'Chyba procesu.';
+    setProcess(0, 'error');
+  }
+  else if(m.type === 'suppliers_found'){
+    // Naplnění dropdownu
+    const sel = el('supplierSelect');
+    sel.innerHTML = '<option value="">-- Všichni dodavatelé --</option>';
+    m.list.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      sel.appendChild(opt);
+    });
+    sel.disabled = false;
+    el('status').textContent = 'Soubor analyzován. Vyberte filtry.';
+    setUpload(100); // Hotovo
+  }
+  else if(m.type === 'progress'){
+    setProcess(m.value);
+    el('status').textContent = m.info;
+  }
+  else if(m.type === 'preview' || m.type === 'export'){
+    setProcess(100, 'success');
+    el('status').textContent = 'Hotovo.';
+    renderTable(m.data);
+    el('summary').innerHTML = 
+      '<div class="tag">Listů: '+m.stats.sheetCount+'</div>' +
+      '<div class="tag">Položek: '+fmt(m.stats.totalIn)+'</div>' +
+      '<div class="tag">Výsledek: '+fmt(m.stats.out)+'</div>';
+    
+    if(m.type === 'export') download(m.file.buff, m.file.name);
+  }
+};
+
+function handleFileSelect(){
+  const f = el('file').files[0];
+  if(!f) return;
+  
+  // UI Reset
+  el('error').textContent = '';
+  el('previewTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Čekám na filtraci...</td></tr>';
+  el('summary').innerHTML = '';
+  el('supplierSelect').innerHTML = '<option>Načítám...</option>';
+  el('supplierSelect').disabled = true;
+  el('processWrap').style.opacity = '0.5';
+  el('barProcess').style.width = '0%';
+  
+  el('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
+  el('status').textContent = 'Nahrávám a skenuji dodavatele...';
+
+  // Read File
+  const reader = new FileReader();
+  reader.onprogress = e => {
+    if(e.lengthComputable) setUpload((e.loaded/e.total)*90); // 90% upload, 10% scan
+  };
+  reader.onload = e => {
+    lastBuffer = e.target.result;
+    setUpload(95);
+    // Spustit scan dodavatelů
+    worker.postMessage({ type:'scan_suppliers', arrayBuffer: lastBuffer });
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+function runFilter(){ startProcess(true); }
+function runExport(){ startProcess(false); }
+
+function startProcess(preview){
+  if(!lastBuffer) { el('error').textContent = 'Nejprve nahrajte soubor.'; return; }
+  el('error').textContent = '';
+  el('status').textContent = 'Zpracovávám data...';
+  el('processWrap').style.opacity = '1';
+  el('barProcess').classList.remove('success');
+  
+  worker.postMessage({
+    type: 'process',
+    arrayBuffer: lastBuffer,
+    wantPreview: preview,
+    dateFrom: el('dateFrom').value,
+    dateTo: el('dateTo').value,
+    minRevenue: parseFloat(el('minRevenue').value || 0),
+    supplierFilter: el('supplierSelect').value
+  });
+}
+
+function renderTable(data){
+  const tbody = el('previewTable').getElementsByTagName('tbody')[0];
+  if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Žádná data neodpovídají filtru.</td></tr>'; return; }
+  
+  let html = '';
+  data.forEach(r => {
+    html += '<tr><td>'+esc(r.s)+'</td><td>'+esc(r.p)+'</td><td class="num">'+fmtMoney(r.sum)+'</td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function download(buff, name){
+  const url = URL.createObjectURL(new Blob([buff], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const a = document.createElement('a'); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function setUpload(p){
+  el('barUpload').style.width = p + '%';
+  el('txtUpload').textContent = Math.round(p) + '%';
+}
+function setProcess(p, state){
+  const bar = el('barProcess');
+  bar.style.width = p + '%';
+  el('txtProcess').textContent = Math.round(p) + '%';
+  if(state === 'success') bar.classList.add('success');
+  else bar.classList.remove('success');
+}
+function resetUI(full){
+  if(full){
+    el('file').value = ''; lastBuffer = null;
+    setUpload(0); el('fileInfo').textContent = '';
+    el('supplierSelect').innerHTML = '<option value="">(Nejprve nahrajte soubor)</option>';
+    el('supplierSelect').disabled = true;
+  }
+  el('previewTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Zatím žádná data</td></tr>';
+  el('summary').innerHTML = '';
+  el('error').textContent = '';
+  el('status').textContent = 'Stav: připraveno';
+  el('processWrap').style.opacity = '0.5';
+  el('barProcess').style.width = '0%';
+}
+function fmt(n){ return new Intl.NumberFormat('cs-CZ').format(n); }
+function fmtMoney(n){ return new Intl.NumberFormat('cs-CZ', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+</script>
 </body>
 </html>
