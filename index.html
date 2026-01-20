@@ -25,14 +25,13 @@
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       color: var(--text-main);
       height: 100vh;
-      /* Moderní barevné pozadí */
       background-color: #e0e7ff;
       background-image: 
         radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
         radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
         radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
       background-attachment: fixed;
-      overflow-y: auto; /* Povolit scroll celé stránky */
+      overflow-y: auto; 
     }
 
     header {
@@ -43,7 +42,7 @@
       text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     h1 { margin: 0; font-size: 2rem; letter-spacing: -0.5px; }
-    .hint { margin-top: 8px; opacity: 0.9; font-size: 0.95rem; max-width: 600px; line-height: 1.5; }
+    .hint { margin-top: 8px; opacity: 0.95; font-size: 1.1rem; max-width: 800px; font-weight: 300; }
 
     /* ===== Layout ===== */
     .grid {
@@ -107,14 +106,13 @@
 
     .progress-wrap { position: relative; height: 16px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin: 8px 0 16px; }
     .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.3s ease, background 0.3s; }
-    .progress-bar.success { background: var(--success); } /* Zelená po dokončení */
+    .progress-bar.success { background: var(--success); }
     .progress-txt { position: absolute; width: 100%; text-align: center; top: 0; line-height: 16px; font-size: 10px; font-weight: bold; color: rgba(0,0,0,0.6); }
 
     /* ===== Table ===== */
     .table-wrapper { overflow-x: auto; max-height: 500px; border-radius: 8px; border: 1px solid #e2e8f0; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     
-    /* Sticky Header */
     thead th {
       background: #f8fafc;
       color: var(--text-muted);
@@ -132,11 +130,8 @@
     tbody td { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; background: #fff; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: #f8fafc; }
-    
-    /* Zarovnání čísel */
     th.num, td.num { text-align: right; font-feature-settings: "tnum"; }
 
-    /* Summary Stats */
     .summary { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
     .tag { background: rgba(99, 102, 241, 0.1); color: var(--primary-dark); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(99, 102, 241, 0.2); }
   </style>
@@ -146,8 +141,7 @@
 <header>
   <h1>Produkty do kampaně</h1>
   <p class="hint">
-    Inteligentní filtr a export. Ignoruje produkty začínající na "SL".<br>
-    Podporuje filtraci podle data (sloupců) a výběr dodavatele.
+    Komplexní nástroj pro načtení, filtraci a export produktových dat z Excelu.
   </p>
 </header>
 
@@ -156,7 +150,6 @@
   <aside class="card">
     <h2>1. Nahrát soubor</h2>
     
-    <!-- Upload Bar -->
     <div class="progress-wrap">
       <div id="barUpload" class="progress-bar"></div>
       <div id="txtUpload" class="progress-txt">0%</div>
@@ -204,7 +197,6 @@
       <button class="btn btn-danger" style="font-size:0.8rem; padding:6px 12px;" onclick="resetUI(true)">Resetovat vše</button>
     </div>
 
-    <!-- Process Bar -->
     <div class="status-box">
       <div id="status">Čekám na akci...</div>
       <div class="progress-wrap" id="processWrap" style="opacity:0.5; margin-bottom:0">
@@ -219,7 +211,7 @@
   <main class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
       <h2>Náhled výsledků</h2>
-      <div class="muted">Zobrazuje se TOP 50 položek</div>
+      <div class="muted">TOP 50 položek</div>
     </div>
 
     <div class="table-wrapper">
@@ -244,14 +236,12 @@
 <!-- ===== WORKER SCRIPT ===== -->
 <script>
 const workerCode = `
-  /* === UTIL === */
   function norm(s){ return String(s||'').toLowerCase().trim(); }
   function parseNum(val){
     if (typeof val === 'number') return val;
     if (val == null) return 0;
     let s = String(val).replace(/\\s/g, '').replace(/\\u00a0/g, '').replace(/kč/i,'');
-    s = s.replace(',', '.');
-    s = s.replace(/[^0-9.-]/g, '');
+    s = s.replace(',', '.'); s = s.replace(/[^0-9.-]/g, '');
     const n = parseFloat(s); return isNaN(n) ? 0 : n;
   }
   function parseHeaderDate(v){
@@ -263,10 +253,7 @@ const workerCode = `
     if (typeof v === 'string'){
        const parts = v.split('.');
        if(parts.length === 3){
-         const day = parseInt(parts[0], 10);
-         const month = parseInt(parts[1], 10) - 1; 
-         const year = parseInt(parts[2], 10);
-         const d = new Date(year, month, day);
+         const d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
          if(!isNaN(d.getTime())) return d;
        }
        const d2 = new Date(v); if(!isNaN(d2.getTime())) return d2;
@@ -282,30 +269,35 @@ const workerCode = `
   self.onmessage = function(ev){
     const msg = ev.data || {};
     
-    // --- SKENOVÁNÍ DODAVATELŮ ---
+    // --- SKENOVÁNÍ DODAVATELŮ (OPTIMALIZOVANÉ) ---
     if(msg.type === 'scan_suppliers'){
       const ab = msg.arrayBuffer;
       loadXLSX(function(err){
         if(err){ self.postMessage({type:'error', message:'Chyba načítání knihovny'}); return; }
         try {
-          const wb = XLSX.read(ab, { type:'array', sheetRows: 0 }); // Načteme vše, ale jen data
+          // SUPER-OPTIMALIZACE: Vypnout styly, datumy, formáty pro rychlý sken
+          const wb = XLSX.read(ab, { type:'array', cellStyles:false, cellHTML:false, cellNF:false, cellDates:false });
           const suppliers = new Set();
+          const listNames = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
           
-          // Projdeme všechny listy (kromě Data) a vyzobeme sloupec A
-          wb.SheetNames.forEach(shName => {
-            if(shName.toLowerCase() === 'data') return;
+          let i = 0;
+          for(const shName of listNames){
+            i++;
+            // Report progress během skenu
+            self.postMessage({type:'scan_progress', info: 'Skenuji dodavatele ('+i+'/'+listNames.length+'): '+shName});
+            
             const ws = wb.Sheets[shName];
-            // sheet_to_json s header:1 vrátí pole polí
+            // Načteme jen data, rychle
             const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
-            rows.forEach(r => {
+            for(const r of rows){
               if(r && r[0]){
                 const s = String(r[0]).trim();
-                if(s.length > 1 && s.toLowerCase() !== 'dodavatel' && s.toLowerCase() !== 'supplier'){
+                if(s.length > 1 && s.toLowerCase()!=='dodavatel' && s.toLowerCase()!=='supplier' && !s.toLowerCase().includes('datum')){
                   suppliers.add(s);
                 }
               }
-            });
-          });
+            }
+          }
           
           const sorted = Array.from(suppliers).sort();
           self.postMessage({ type:'suppliers_found', list: sorted });
@@ -325,28 +317,25 @@ const workerCode = `
       loadXLSX(function(err){
         if(err){ self.postMessage({type:'error', message:'Chyba'}); return; }
         try {
-          // 1. Zjistit listy
-          const wb = XLSX.read(arrayBuffer, { type:'array', cellDates:true });
+          const wb = XLSX.read(arrayBuffer, { type:'array', cellDates:true, cellStyles:false });
           const sheetsToParse = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
           
           const agg = new Map();
           let totalIn = 0;
           let processedSheets = 0;
 
-          // 2. Iterace listů
           for(const shName of sheetsToParse){
             processedSheets++;
             const pct = Math.round((processedSheets / sheetsToParse.length) * 100);
-            self.postMessage({ type:'progress', value:pct, info:'Analyzuji: ' + shName });
+            self.postMessage({ type:'progress', value:pct, info:'Zpracovávám data: ' + shName });
 
             const ws = wb.Sheets[shName];
             const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
             if(!rows || rows.length < 2) continue;
 
-            // Hlavička (řádek 0) - detekce sloupců s datem
             const header = rows[0];
             const validCols = [];
-            for(let c=2; c<header.length; c++){ // od C
+            for(let c=2; c<header.length; c++){ 
               const d = parseHeaderDate(header[c]);
               if(d){
                 let ok = true;
@@ -355,36 +344,29 @@ const workerCode = `
                 if(ok) validCols.push(c);
               }
             }
-            if(validCols.length === 0 && (dateFrom || dateTo)) continue; // List nemá relevantní data
+            if(validCols.length === 0 && (dateFrom || dateTo)) continue;
 
-            // Data (řádek 1+)
             let currSupp = null;
             for(let r=1; r<rows.length; r++){
               const row = rows[r]; if(!row) continue;
               const valA = row[0];
               const valB = row[1];
 
-              // A = Dodavatel
               if(valA && String(valA).trim()){
                 const s = String(valA).trim();
-                if(s.toLowerCase()!=='dodavatel') currSupp = s;
+                if(s.toLowerCase()!=='dodavatel' && s.toLowerCase()!=='supplier') currSupp = s;
               }
 
-              // B = Produkt
               if(valB && currSupp){
                 const prod = String(valB).trim();
-                // IGNOROVAT "SL"
+                // IGNOROVAT SL
                 if(prod.toUpperCase().startsWith('SL')) continue;
                 if(prod.toLowerCase()==='produkt') continue;
 
-                // Filtr dodavatele (Dropdown)
                 if(supplierFilter && currSupp !== supplierFilter) continue;
 
-                // Součet
                 let sum = 0;
-                // Pokud nemáme filtr data, bereme všechny sloupce od 2
                 const cols = (validCols.length > 0) ? validCols : Array.from({length: row.length-2}, (_,i)=>i+2);
-                
                 for(let c of cols){
                   const v = row[c];
                   if(v) sum += parseNum(v);
@@ -401,17 +383,14 @@ const workerCode = `
             }
           }
 
-          // 3. Výsledky & Min. obrat
           let res = Array.from(agg.values());
           if(minRevenue > 0) res = res.filter(x => x.sum >= minRevenue);
           res.sort((a,b) => b.sum - a.sum);
 
-          // Export
           let xlsxBuff = null, fName = null;
           if(!wantPreview){
             const aoa = [['Dodavatel','Produkt','Obrat']].concat(res.map(x => [x.s, x.p, x.sum]));
             const newWs = XLSX.utils.aoa_to_sheet(aoa);
-            // Format cisel
             for(let r=1; r<aoa.length; r++){
                const ref = XLSX.utils.encode_cell({r:r, c:2});
                if(newWs[ref]) newWs[ref].z = '#,##0.00';
@@ -442,7 +421,6 @@ const worker = new Worker(URL.createObjectURL(blob));
 const el = id => document.getElementById(id);
 let lastBuffer = null;
 
-// Worker Listeners
 worker.onmessage = e => {
   const m = e.data;
   if(m.type === 'error'){
@@ -450,19 +428,21 @@ worker.onmessage = e => {
     el('status').textContent = 'Chyba procesu.';
     setProcess(0, 'error');
   }
+  else if(m.type === 'scan_progress'){
+    // Zobrazuje se v statusu, aby uživatel viděl pohyb
+    el('status').textContent = m.info;
+  }
   else if(m.type === 'suppliers_found'){
-    // Naplnění dropdownu
     const sel = el('supplierSelect');
     sel.innerHTML = '<option value="">-- Všichni dodavatelé --</option>';
     m.list.forEach(s => {
       const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = s;
+      opt.value = s; opt.textContent = s;
       sel.appendChild(opt);
     });
     sel.disabled = false;
-    el('status').textContent = 'Soubor analyzován. Vyberte filtry.';
-    setUpload(100); // Hotovo
+    el('status').textContent = 'Soubor připraven. Vyberte filtry.';
+    setUpload(100); 
   }
   else if(m.type === 'progress'){
     setProcess(m.value);
@@ -485,27 +465,18 @@ function handleFileSelect(){
   const f = el('file').files[0];
   if(!f) return;
   
-  // UI Reset
-  el('error').textContent = '';
-  el('previewTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px">Čekám na filtraci...</td></tr>';
-  el('summary').innerHTML = '';
-  el('supplierSelect').innerHTML = '<option>Načítám...</option>';
-  el('supplierSelect').disabled = true;
-  el('processWrap').style.opacity = '0.5';
-  el('barProcess').style.width = '0%';
-  
+  resetUI(false); 
   el('fileInfo').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
-  el('status').textContent = 'Nahrávám a skenuji dodavatele...';
+  el('status').textContent = 'Nahrávám soubor...';
 
-  // Read File
   const reader = new FileReader();
   reader.onprogress = e => {
-    if(e.lengthComputable) setUpload((e.loaded/e.total)*90); // 90% upload, 10% scan
+    if(e.lengthComputable) setUpload((e.loaded/e.total)*90);
   };
   reader.onload = e => {
     lastBuffer = e.target.result;
     setUpload(95);
-    // Spustit scan dodavatelů
+    el('status').textContent = 'Spouštím rychlý sken dodavatelů...';
     worker.postMessage({ type:'scan_suppliers', arrayBuffer: lastBuffer });
   };
   reader.readAsArrayBuffer(f);
@@ -535,7 +506,6 @@ function startProcess(preview){
 function renderTable(data){
   const tbody = el('previewTable').getElementsByTagName('tbody')[0];
   if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Žádná data neodpovídají filtru.</td></tr>'; return; }
-  
   let html = '';
   data.forEach(r => {
     html += '<tr><td>'+esc(r.s)+'</td><td>'+esc(r.p)+'</td><td class="num">'+fmtMoney(r.sum)+'</td></tr>';
