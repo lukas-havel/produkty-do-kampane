@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Produkty do kampaně — filtr & export XLSX</title>
   
-  <!-- Flatpickr CSS (Moderní kalendář) -->
+  <!-- Flatpickr CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
 
@@ -24,7 +24,6 @@
       --radius: 16px;
     }
 
-    /* ===== Base & Background ===== */
     body {
       margin: 0;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -49,7 +48,6 @@
     h1 { margin: 0; font-size: 2rem; letter-spacing: -0.5px; }
     .hint { margin-top: 8px; opacity: 0.95; font-size: 1.1rem; max-width: 800px; font-weight: 300; }
 
-    /* ===== Layout ===== */
     .grid {
       display: grid;
       grid-template-columns: 380px 1fr;
@@ -61,7 +59,6 @@
     }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 
-    /* ===== Glass Card ===== */
     .card {
       background: var(--bg-glass);
       backdrop-filter: blur(12px);
@@ -72,13 +69,9 @@
     }
     .card h2 { margin: 0 0 16px; font-size: 1.2rem; color: var(--primary-dark); }
 
-    /* ===== Forms ===== */
     label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
     
-    input[type="file"], 
-    input[type="text"], /* Flatpickr mění type="date" na text */
-    input[type="number"], 
-    select {
+    input[type="file"], input[type="text"], input[type="number"], select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid #cbd5e1;
@@ -90,13 +83,11 @@
       transition: border-color 0.2s, box-shadow 0.2s;
     }
     input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
-    
     input:disabled, select:disabled, input.flatpickr-input[disabled] { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
 
     .controls-row { display: flex; gap: 12px; margin-top: 12px; }
     .controls-row > * { flex: 1; }
 
-    /* Quick Date Buttons */
     .quick-dates { display: flex; gap: 8px; margin-bottom: 8px; }
     .btn-tiny {
       background: rgba(99, 102, 241, 0.1); color: var(--primary-dark);
@@ -106,7 +97,6 @@
     .btn-tiny:hover { background: rgba(99, 102, 241, 0.2); }
     .btn-tiny:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    /* ===== Buttons ===== */
     .btn {
       width: 100%; padding: 12px; border: none; border-radius: 10px;
       font-weight: 600; cursor: pointer; color: white;
@@ -121,7 +111,6 @@
     .btn-accent { background: linear-gradient(135deg, var(--accent), #db2777); }
     .btn-danger { background: #ef4444; color: white; width: auto; padding: 12px 16px; }
 
-    /* ===== Status & Progress ===== */
     .status-box { margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.5); border-radius: 8px; font-size: 0.9rem; border: 1px dashed #cbd5e1; }
     .error { color: #dc2626; margin-top: 8px; font-weight: 600; }
     .muted { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
@@ -131,22 +120,13 @@
     .progress-bar.success { background: var(--success); }
     .progress-txt { position: absolute; width: 100%; text-align: center; top: 0; line-height: 16px; font-size: 10px; font-weight: bold; color: rgba(0,0,0,0.6); }
 
-    /* ===== Table ===== */
     .table-wrapper { overflow-x: auto; max-height: 500px; border-radius: 8px; border: 1px solid #e2e8f0; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     
     thead th {
-      background: #f8fafc;
-      color: var(--text-muted);
-      font-weight: 700;
-      text-transform: uppercase;
-      font-size: 0.75rem;
-      padding: 12px 16px;
-      text-align: left;
-      position: sticky; 
-      top: 0; 
-      z-index: 10;
-      border-bottom: 2px solid #e2e8f0;
+      background: #f8fafc; color: var(--text-muted); font-weight: 700; text-transform: uppercase;
+      font-size: 0.75rem; padding: 12px 16px; text-align: left;
+      position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #e2e8f0;
     }
     
     tbody td { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; background: #fff; }
@@ -203,11 +183,10 @@
       </div>
     </div>
 
-    <!-- Datalist pro dodavatele -->
+    <!-- POUZE TEXTOVÝ INPUT PRO DODAVATELE -->
     <div style="margin-top:12px">
-      <label for="supplierInput">Dodavatel (našeptávač)</label>
-      <input list="suppliersList" id="supplierInput" placeholder="(Nejprve nahrajte soubor)" disabled autocomplete="off">
-      <datalist id="suppliersList"></datalist>
+      <label for="supplierInput">Dodavatel (obsahuje text)</label>
+      <input type="text" id="supplierInput" placeholder="Např. Alza..." disabled>
     </div>
 
     <div style="margin-top:12px">
@@ -267,7 +246,6 @@
 
 <!-- ===== WORKER SCRIPT ===== -->
 <script>
-/* Worker je stejný, mění se jen inicializace kalendáře v UI části */
 const workerCode = `
   function norm(s){ return String(s||'').toLowerCase().trim(); }
   function parseNum(val){
@@ -302,35 +280,9 @@ const workerCode = `
   self.onmessage = function(ev){
     const msg = ev.data || {};
     
-    if(msg.type === 'scan_suppliers'){
-      const ab = msg.arrayBuffer;
-      loadXLSX(function(err){
-        if(err){ return; }
-        try {
-          const wb = XLSX.read(ab, { type:'array', cellStyles:false, cellHTML:false, cellNF:false, cellDates:false });
-          const suppliers = new Set();
-          const listNames = wb.SheetNames.filter(n => n.toLowerCase() !== 'data');
-          for(const shName of listNames){
-            const ws = wb.Sheets[shName];
-            const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
-            for(const r of rows){
-              if(r && r[0]){
-                const s = String(r[0]).trim();
-                if(s.length > 1 && s.toLowerCase()!=='dodavatel' && s.toLowerCase()!=='supplier' && !s.toLowerCase().includes('datum')){
-                  suppliers.add(s);
-                }
-              }
-            }
-          }
-          const sorted = Array.from(suppliers).sort();
-          self.postMessage({ type:'suppliers_found', list: sorted });
-        } catch(e){ }
-      });
-    }
-
+    // --- PROCES FILTRACE (Žádný scan dodavatelů) ---
     if(msg.type === 'process'){
       const { arrayBuffer, supplierFilter, minRevenue, wantPreview } = msg;
-      // Date stringy z Flatpickr jsou YYYY-MM-DD
       const dateFrom = msg.dateFrom ? new Date(msg.dateFrom) : null;
       if(dateFrom) dateFrom.setHours(0,0,0,0);
       const dateTo = msg.dateTo ? new Date(msg.dateTo) : null;
@@ -385,6 +337,7 @@ const workerCode = `
                 if(prod.toUpperCase().startsWith('SL')) continue;
                 if(prod.toLowerCase()==='produkt') continue;
 
+                // Simple text filter
                 if(filterSuppLower && !currSupp.toLowerCase().includes(filterSuppLower)) continue;
 
                 let sum = 0;
@@ -442,28 +395,24 @@ const worker = new Worker(URL.createObjectURL(blob));
 /* === UI === */
 const el = id => document.getElementById(id);
 let lastBuffer = null;
-let fpFrom = null; // Flatpickr instances
+let fpFrom = null; 
 let fpTo = null;
 
-// Inicializace Flatpickr po načtení stránky
 window.onload = function() {
   const fpConfig = {
     locale: "cs",
-    dateFormat: "Y-m-d", // Formát pro JS (skrytý)
-    altInput: true,      // Povolit alternativní zobrazení
-    altFormat: "j. F Y", // Formát pro uživatele (např. 20. leden 2025)
-    allowInput: true     // Povolit ruční psaní
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "j. F Y",
+    allowInput: true
   };
-  
   fpFrom = flatpickr("#dateFrom", fpConfig);
   fpTo = flatpickr("#dateTo", fpConfig);
 };
 
-// Rychlé volby datumu
 function setQuickDate(type) {
   const today = new Date();
   let d1, d2;
-  
   if (type === 'thisMonth') {
     d1 = new Date(today.getFullYear(), today.getMonth(), 1);
     d2 = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -471,36 +420,15 @@ function setQuickDate(type) {
     d1 = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     d2 = new Date(today.getFullYear(), today.getMonth(), 0);
   }
-  
-  if (fpFrom && fpTo) {
-    fpFrom.setDate(d1);
-    fpTo.setDate(d2);
-  }
+  if (fpFrom && fpTo) { fpFrom.setDate(d1); fpTo.setDate(d2); }
 }
 
-// Worker Listeners
 worker.onmessage = e => {
   const m = e.data;
   if(m.type === 'error'){
     el('error').textContent = 'Chyba: ' + m.message;
     el('status').textContent = 'Chyba procesu.';
     setProcess(0, 'error');
-  }
-  else if(m.type === 'scan_progress'){
-    el('status').textContent = m.info;
-  }
-  else if(m.type === 'suppliers_found'){
-    const list = el('suppliersList');
-    const input = el('supplierInput');
-    list.innerHTML = ''; 
-    m.list.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s;
-      list.appendChild(opt);
-    });
-    input.placeholder = "Začněte psát nebo vyberte ze seznamu...";
-    el('status').textContent = 'Soubor připraven. Vyberte filtry.';
-    setUpload(100); 
   }
   else if(m.type === 'progress'){
     setProcess(m.value);
@@ -534,25 +462,10 @@ function handleFileSelect(){
   reader.onload = e => {
     lastBuffer = e.target.result;
     setUpload(100);
-    el('status').textContent = 'Soubor nahrán. Můžete pracovat (dodavatelé se načítají).';
+    el('status').textContent = 'Soubor nahrán. Můžete pracovat.';
     
-    // ODEMKNOUT UI
-    // Flatpickr inputy se odemykají tím, že odebereme disabled z původního elementu
-    // Ale Flatpickr má wrapper, takže je jistější použít jeho API nebo překreslit
-    // Jednodušší: inputy už nemají disabled v HTML, ale my je disableujeme v JS při resetu
-    // Zde je povolíme:
-    
-    fpFrom._input.disabled = false; // Povolí psaní
-    fpTo._input.disabled = false;
-    // Ale Flatpickr vytvořil altInput, který vidíme.
-    // Nejjednodušší: selectnout all inputs a remove disabled
+    // IHNED ODEMKNOUT VŠE
     document.querySelectorAll('input, button').forEach(i => i.disabled = false);
-    // Znovu disablovat co má být (třeba reset) - ne, reset má být enabled.
-    
-    // Placeholder
-    el('supplierInput').placeholder = "Načítám seznam dodavatelů (můžete psát ručně)...";
-
-    worker.postMessage({ type:'scan_suppliers', arrayBuffer: lastBuffer });
   };
   reader.readAsArrayBuffer(f);
 }
@@ -566,10 +479,6 @@ function startProcess(preview){
   el('status').textContent = 'Zpracovávám data...';
   el('processWrap').style.opacity = '1';
   el('barProcess').classList.remove('success');
-  
-  // Získáme data z Flatpickr (vrací pole dat, bereme [0])
-  // Ale my čteme .value z inputu, kterou Flatpickr aktualizuje na YYYY-MM-DD.
-  // Takže el('dateFrom').value je správně.
   
   worker.postMessage({
     type: 'process',
@@ -614,15 +523,8 @@ function resetUI(full){
     el('file').value = ''; lastBuffer = null;
     setUpload(0); el('fileInfo').textContent = '';
     el('supplierInput').value = '';
-    el('supplierInput').placeholder = "(Nejprve nahrajte soubor)";
-    el('suppliersList').innerHTML = '';
-    
-    // Zablokovat UI
     document.querySelectorAll('input:not(#file), button:not(#btnFile)').forEach(i => i.disabled = true);
-    // Tlačítko reset povolit
     document.querySelector('.btn-danger').disabled = false;
-    
-    // Vyčistit Flatpickr
     if(fpFrom) fpFrom.clear();
     if(fpTo) fpTo.clear();
   }
